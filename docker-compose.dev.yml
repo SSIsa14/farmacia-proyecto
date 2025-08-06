@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  oracle-db:
+    image: gvenzl/oracle-xe:latest
+    container_name: oracle-xe-dev-pharmacy
+    environment:
+      - ORACLE_PASSWORD=LocalOraclePass2
+    ports:
+      - "1523:1521"
+    volumes:
+      - ./oracle-data-dev:/opt/oracle/oradata
+      - ./db-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - pharmacy-network
+
+  backend:
+    build:
+      context: ./pharmacy
+      dockerfile: Dockerfile
+    container_name: pharmacy-backend
+    ports:
+      - "8082:8080"
+    depends_on:
+      - oracle-db
+    restart: always
+    networks:
+      - pharmacy-network
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle-db:1521/XEPDB1
+      SPRING_DATASOURCE_USERNAME: PHARMACY_LOCAL
+      SPRING_DATASOURCE_PASSWORD: devpass
+      SERVER_PORT: 8080
+      APP_BASE-URL: http://localhost:8082
+      APP_FRONTEND-URL: http://localhost:4300
+
+  frontend:
+    build:
+      context: ./frontend  # Ruta al frontend
+      dockerfile: Dockerfile
+    container_name: pharmacy-frontend
+    ports:
+      - "4300:80"
+    depends_on:
+      - backend
+    networks:
+      - pharmacy-network
+
+networks:
+  pharmacy-network:
+    external: true
