@@ -6,8 +6,8 @@ public class CoberturaMedicamentoDTO {
     private String codigoMedicamento;
     private String nombre;
     private boolean cubierto;
-    private double montoAutorizado;
-    private double copago;
+    private Double montoAutorizado;
+    private Double copago;
     private String mensaje;
 
     public CoberturaMedicamentoDTO() {

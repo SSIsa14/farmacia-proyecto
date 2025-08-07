@@ -6,7 +6,7 @@ WORKDIR /app
 COPY . .
 
 # Ejecutar los tests y construir el JAR
-RUN mvn clean package -DskipTests
+RUN mvn clean package 
 
 # Etapa final: solo el JAR limpio
 FROM eclipse-temurin:17-jdk

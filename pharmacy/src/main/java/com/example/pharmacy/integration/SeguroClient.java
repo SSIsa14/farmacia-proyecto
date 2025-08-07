@@ -12,8 +12,8 @@ public class SeguroClient {
             dto.setNumeroAfiliacion(numeroAfiliacion);
             dto.setCodigoMedicamento(codigoMedicamento);
             dto.setCubierto(true);
-            dto.setMontoAutorizado(100.0);
-            dto.setCopago(20.0);
+            dto.setMontoAutorizado(0.0);
+            dto.setCopago(0.0);
             dto.setMensaje("Cobertura 80% para este medicamento.");
             return dto;
         } else {
@@ -21,12 +21,10 @@ public class SeguroClient {
             dto.setNumeroAfiliacion(numeroAfiliacion);
             dto.setCodigoMedicamento(codigoMedicamento);
             dto.setCubierto(false);
+            dto.setMontoAutorizado(0.0);  // Aquí se corrige para que sea null
+            dto.setCopago(0.0);           // Aquí se corrige para que sea null
             dto.setMensaje("No se encontró cobertura.");
             return dto;
         }
     }
 }
-
-
-
-
