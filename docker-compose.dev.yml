@@ -18,7 +18,7 @@ services:
     build:
       context: ./pharmacy
       dockerfile: Dockerfile
-    container_name: pharmacy-backend
+    container_name: pharmacy-backend-dev
     ports:
       - "8082:8080"
     depends_on:
@@ -35,7 +35,7 @@ services:
       dockerfile: Dockerfile
       args:
         CONFIGURATION: development  # Configuración para el build
-    container_name: pharmacy-frontend
+    container_name: pharmacy-frontend-dev
     ports:
       - "4300:80"
     depends_on:
