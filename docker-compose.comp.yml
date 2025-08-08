@@ -1,0 +1,132 @@
+version: "3.8"
+
+services:
+  oracle-db-dev:
+    image: gvenzl/oracle-xe:latest
+    container_name: oracle-xe-dev-pharmacy
+    environment:
+      - ORACLE_PASSWORD=LocalOraclePass2
+    ports:
+      - "1523:1521"
+    volumes:
+      - ./oracle-data-dev:/opt/oracle/oradata
+      - ./db-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - pharmacy-network
+
+  backend-dev:
+    build:
+      context: ./pharmacy
+      dockerfile: Dockerfile
+    container_name: pharmacy-backend-dev
+    ports:
+      - "8082:8080"
+    depends_on:
+      - oracle-db-dev
+    restart: always
+    networks:
+      - pharmacy-network
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        CONFIGURATION: development
+    container_name: pharmacy-frontend-dev
+    ports:
+      - "4300:80"
+    depends_on:
+      - backend-dev
+    networks:
+      - pharmacy-network
+
+  oracle-db-qa:
+    image: gvenzl/oracle-xe:latest
+    container_name: oracle-xe-qa-pharmacy
+    environment:
+      - ORACLE_PASSWORD=LocalOraclePass2
+    ports:
+      - "1524:1521"
+    volumes:
+      - ./oracle-data-qa:/opt/oracle/oradata
+      - ./db-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - pharmacy-network
+
+  backend-qa:
+    build:
+      context: ./pharmacy
+      dockerfile: Dockerfile
+    container_name: pharmacy-backend-qa
+    ports:
+      - "8083:8080"
+    depends_on:
+      - oracle-db-qa
+    restart: always
+    networks:
+      - pharmacy-network
+    environment:
+      SPRING_PROFILES_ACTIVE: qa
+
+  frontend-qa:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        CONFIGURATION: qa
+    container_name: pharmacy-frontend-qa
+    ports:
+      - "4301:80"
+    depends_on:
+      - backend-qa
+    networks:
+      - pharmacy-network
+
+  oracle-db-prod:
+    image: gvenzl/oracle-xe:latest
+    container_name: oracle-xe-prod-pharmacy
+    environment:
+      - ORACLE_PASSWORD=LocalOraclePass2
+    ports:
+      - "1525:1521"
+    volumes:
+      - ./oracle-data-prod:/opt/oracle/oradata
+      - ./db-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - pharmacy-network
+
+  backend-prod:
+    build:
+      context: ./pharmacy
+      dockerfile: Dockerfile
+    container_name: pharmacy-backend-prod
+    ports:
+      - "8085:8080"
+    depends_on:
+      - oracle-db-prod
+    restart: always
+    networks:
+      - pharmacy-network
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+  frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        CONFIGURATION: production
+    container_name: pharmacy-frontend-prod
+    ports:
+      - "4305:80"
+    depends_on:
+      - backend-prod
+    networks:
+      - pharmacy-network
+
+networks:
+  pharmacy-network:
+    external: true
