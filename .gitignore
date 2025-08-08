@@ -1,5 +1,7 @@
 .DS_Store
 oracle-data-dev/
+oracle-data-qa/
+oracle-data-prod/
 .env
 .env.local
 .env.*.local
