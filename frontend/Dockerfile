@@ -6,7 +6,7 @@ ARG CONFIGURATION=development
 WORKDIR /app
 COPY . .
 RUN npm install
-RUN npm run build --configuration=${CONFIGURATION}
+RUN npm run build -- --configuration=${CONFIGURATION}
 
 # Etapa 2: Servir con nginx
 FROM nginx:alpine
