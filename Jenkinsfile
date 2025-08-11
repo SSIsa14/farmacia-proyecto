@@ -43,7 +43,7 @@ pipeline {
           def branch = env.BRANCH_NAME.toLowerCase()
           def sonarConfig = [
             'main': ['backend': ['projectKey': 'FP-BackendMain', 'tokenId': 'sonarqube-token-backend-main']],
-            'dev' : ['backend': ['projectKey': 'FP-BackendDev',  'tokenId': 'sonarqube-token-backend-dev']],
+            'development' : ['backend': ['projectKey': 'FP-BackendDev',  'tokenId': 'sonarqube-token-backend-dev']],
             'qa'  : ['backend': ['projectKey': 'FP-BackendQA',   'tokenId': 'sonarqube-token-backend-qa']]
           ]
 
@@ -89,7 +89,7 @@ pipeline {
           def branch = env.BRANCH_NAME.toLowerCase()
           def sonarConfig = [
             'main': ['frontend': ['projectKey': 'FP-FrontendMain', 'tokenId': 'sonarqube-token-frontend-main']],
-            'dev' : ['frontend': ['projectKey': 'FP-FrontendDev',  'tokenId': 'sonarqube-token-frontend-dev']],
+            'development' : ['frontend': ['projectKey': 'FP-FrontendDev',  'tokenId': 'sonarqube-token-frontend-dev']],
             'qa'  : ['frontend': ['projectKey': 'FP-FrontendQA',   'tokenId': 'sonarqube-token-frontend-qa']]
           ]
 
