@@ -1,7 +1,5 @@
 # farmacias-db2adfs
 GH Repo para farmacias, proyecto DB2/ADFS
-Estos pasos están mucho más fáciles.
-Mucha parte de la configuración ya está hecha.
 
 ## Instrucciones
 1. clonan el repo
