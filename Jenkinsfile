@@ -118,4 +118,22 @@ pipeline {
       }
     }
   }
+
+  post {
+    failure {
+      withCredentials([string(credentialsId: 'email-recipients', variable: 'EMAIL_LIST')]) {
+        emailext(
+          subject: "❌ Falló el pipeline: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+          body: """
+            <p>Hola equipo,</p>
+            <p>El pipeline <b>${env.JOB_NAME} #${env.BUILD_NUMBER}</b> ha fallado.</p>
+            <p>Rama: <b>${env.BRANCH_NAME}</b></p>
+            <p>Revisar detalles en: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+          """,
+          mimeType: 'text/html',
+          to: "${EMAIL_LIST}"
+        )
+      }
+    }
+  }
 }
