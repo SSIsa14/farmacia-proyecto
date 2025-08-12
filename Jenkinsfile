@@ -195,11 +195,9 @@ pipeline {
         script {
           def fecha = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone('UTC'))
           def resumen = failedStages.collect { "- ${it}" }.join("<br>")
-          def consoleOutput = currentBuild.getRawBuild().getLog(50).join("\n")
-
+         
           echo "DEBUG: Enviando correo..."
           echo "DEBUG: failedStages=${failedStages}"
-          echo "DEBUG: Últimas 50 líneas del log:\n${consoleOutput}"
 
           withCredentials([string(credentialsId: 'emails-recipients', variable: 'EMAIL_LIST')]) {
             emailext(
@@ -216,8 +214,6 @@ pipeline {
                     <h3>Etapas que fallaron:</h3>
                     <p>${resumen}</p>
                     <hr>
-                    <h3>Últimas 50 líneas del log:</h3>
-                    <pre>${consoleOutput}</pre>
                   </body>
                 </html>
               """,
