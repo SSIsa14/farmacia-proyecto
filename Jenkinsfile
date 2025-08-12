@@ -1,5 +1,6 @@
-def stageStatus = [:]  // guardará: etapa -> estado ('SUCCESS', 'FAILURE', 'NOT_EXECUTED')
+def stageStatus = [:]  // etapa -> estado
 def failedStage = ""
+def allStages = ['Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis']
 
 pipeline {
   agent any
@@ -212,6 +213,13 @@ pipeline {
     failure {
       script {
         def fecha = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone('UTC'))
+
+        // Completar con NOT_EXECUTED las etapas que no se actualizaron
+        allStages.each { stageName ->
+          if (!stageStatus.containsKey(stageName)) {
+            stageStatus[stageName] = 'NOT_EXECUTED'
+          }
+        }
 
         // Construir el listado de etapas con sus estados
         def reportStages = stageStatus.collect { stageName, status ->
