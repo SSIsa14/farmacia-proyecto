@@ -1,6 +1,6 @@
 def stageStatus = [:]  // etapa -> estado
 def failedStage = ""
-def allStages = ['Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis']
+def allStages = ['Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis', 'Deploy']
 
 pipeline {
   agent any
@@ -207,6 +207,52 @@ pipeline {
         }
       }
     }
+
+
+      stage('Deploy') {
+    steps {
+      script {
+        def branch = env.BRANCH_NAME.toLowerCase()
+        def composeFile = ''
+
+        if (branch == 'main') {
+          composeFile = 'docker-compose.prod.yml'
+        } else if (branch == 'development') {
+          composeFile = 'docker-compose.dev.yml'
+        } else if (branch == 'qa') {
+          composeFile = 'docker-compose.qa.yml'
+        } else {
+          error "No hay configuración de despliegue para la rama '${branch}'"
+        }
+
+        echo "=== Deploy con archivo: ${composeFile} ==="
+
+        // Bajar contenedores si están corriendo (ignorar error si no existen)
+        sh "docker-compose -f ${composeFile} down || true"
+
+        // Construir sin cache
+        sh "docker-compose -f ${composeFile} build --no-cache"
+
+        // Levantar contenedores en segundo plano
+        sh "docker-compose -f ${composeFile} up -d"
+      }
+    }
+    post {
+      success {
+        script { stageStatus['Deploy'] = 'SUCCESS' }
+      }
+      failure {
+        script {
+          stageStatus['Deploy'] = 'FAILURE'
+          failedStage = "Deploy"
+        }
+      }
+      aborted {
+        script { stageStatus['Deploy'] = 'NOT_EXECUTED' }
+      }
+    }
+  }
+
   }
 
   post {
