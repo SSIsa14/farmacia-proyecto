@@ -1,3 +1,6 @@
+def stageStatus = [:]  // guardará: etapa -> estado ('SUCCESS', 'FAILURE', 'NOT_EXECUTED')
+def failedStage = ""
+
 pipeline {
   agent any
 
@@ -12,6 +15,20 @@ pipeline {
         checkout scm
         echo "==== [Checkout] Finalizado ===="
       }
+      post {
+        success {
+          script { stageStatus['Checkout'] = 'SUCCESS' }
+        }
+        failure {
+          script {
+            stageStatus['Checkout'] = 'FAILURE'
+            failedStage = "Checkout"
+          }
+        }
+        aborted {
+          script { stageStatus['Checkout'] = 'NOT_EXECUTED' }
+        }
+      }
     }
 
     stage('Build Backend') {
@@ -23,6 +40,20 @@ pipeline {
         }
         echo "==== [Build Backend] Finalizado ===="
       }
+      post {
+        success {
+          script { stageStatus['Build Backend'] = 'SUCCESS' }
+        }
+        failure {
+          script {
+            stageStatus['Build Backend'] = 'FAILURE'
+            failedStage = "Build Backend"
+          }
+        }
+        aborted {
+          script { stageStatus['Build Backend'] = 'NOT_EXECUTED' }
+        }
+      }
     }
 
     stage('Test Backend') {
@@ -33,6 +64,20 @@ pipeline {
           sh 'mvn test'
         }
         echo "==== [Test Backend] Finalizado ===="
+      }
+      post {
+        success {
+          script { stageStatus['Test Backend'] = 'SUCCESS' }
+        }
+        failure {
+          script {
+            stageStatus['Test Backend'] = 'FAILURE'
+            failedStage = "Test Backend"
+          }
+        }
+        aborted {
+          script { stageStatus['Test Backend'] = 'NOT_EXECUTED' }
+        }
       }
     }
 
@@ -69,6 +114,20 @@ pipeline {
         }
         echo "==== [SonarQube Backend] Finalizado ===="
       }
+      post {
+        success {
+          script { stageStatus['SonarQube Backend Analysis'] = 'SUCCESS' }
+        }
+        failure {
+          script {
+            stageStatus['SonarQube Backend Analysis'] = 'FAILURE'
+            failedStage = "SonarQube Backend Analysis"
+          }
+        }
+        aborted {
+          script { stageStatus['SonarQube Backend Analysis'] = 'NOT_EXECUTED' }
+        }
+      }
     }
 
     stage('Build Frontend') {
@@ -79,6 +138,20 @@ pipeline {
           sh 'npm install'
         }
         echo "==== [Build Frontend] Finalizado ===="
+      }
+      post {
+        success {
+          script { stageStatus['Build Frontend'] = 'SUCCESS' }
+        }
+        failure {
+          script {
+            stageStatus['Build Frontend'] = 'FAILURE'
+            failedStage = "Build Frontend"
+          }
+        }
+        aborted {
+          script { stageStatus['Build Frontend'] = 'NOT_EXECUTED' }
+        }
       }
     }
 
@@ -118,6 +191,20 @@ pipeline {
         }
         echo "==== [SonarQube Frontend] Finalizado ===="
       }
+      post {
+        success {
+          script { stageStatus['SonarQube Frontend Analysis'] = 'SUCCESS' }
+        }
+        failure {
+          script {
+            stageStatus['SonarQube Frontend Analysis'] = 'FAILURE'
+            failedStage = "SonarQube Frontend Analysis"
+          }
+        }
+        aborted {
+          script { stageStatus['SonarQube Frontend Analysis'] = 'NOT_EXECUTED' }
+        }
+      }
     }
   }
 
@@ -126,19 +213,28 @@ pipeline {
       script {
         def fecha = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone('UTC'))
 
+        // Construir el listado de etapas con sus estados
+        def reportStages = stageStatus.collect { stageName, status ->
+          def color = status == 'FAILURE' ? 'red' : (status == 'SUCCESS' ? 'green' : 'gray')
+          return "<li><b>${stageName}:</b> <span style='color:${color}'>${status}</span></li>"
+        }.join("")
+
         withCredentials([string(credentialsId: 'emails-recipients', variable: 'EMAIL_LIST')]) {
           emailext(
-            subject: "❌ Reporte Fallo - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            subject: "Reporte de Fallo - Jenkins Pipeline",
             body: """
               <html>
                 <body style="font-family: Arial, sans-serif;">
-                  <h2 style="color:red;">Reporte de Fallo - Jenkins Pipeline</h2>
-                  <p><b>Fecha:</b> ${fecha} UTC</p>
-                  <p><b>Job:</b> ${env.JOB_NAME}</p>
-                  <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
-                  <p><b>Rama:</b> ${env.BRANCH_NAME}</p>
-                  <hr>
-                  <h3>Revisa el log completo en Jenkins para más detalles.</h3>
+                    <h2 style="color:red;"> Reporte de Fallo - Jenkins Pipeline</h2>
+                    <p><b>Fecha:</b> ${fecha} UTC</p>
+                    <p><b>Job:</b> ${env.JOB_NAME}</p>
+                    <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+                    <p><b>Rama:</b> ${env.BRANCH_NAME}</p>
+                    <hr>
+                    <p>El pipeline falló en la etapa de <b>${failedStage}</b>.</p>
+                    <hr>
+                    <h3>Estado de las etapas:</h3>
+                    <ul>${reportStages}</ul>
                 </body>
               </html>
             """,
