@@ -11,7 +11,7 @@ services:
     volumes:
       - ./oracle-data-prod:/opt/oracle/oradata
       - ./db-scripts:/docker-entrypoint-initdb.d
-    user: "54321:54321"
+    user: "0:0"
     networks:
       - pharmacy-network
 
