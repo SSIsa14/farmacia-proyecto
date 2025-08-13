@@ -9,7 +9,7 @@ services:
     ports:
       - "1523:1521"
     volumes:
-      - home/sofi/Documents/GitHub/farmacia-proyecto/oracle-data-dev:/opt/oracle/oradata
+      - /home/sofi/Documents/GitHub/farmacia-proyecto/oracle-data-dev:/opt/oracle/oradata
       - ./db-scripts:/docker-entrypoint-initdb.d
     networks:
       - pharmacy-network
