@@ -234,7 +234,7 @@ pipeline {
         sh "docker-compose -f ${composeFile} build --no-cache"
 
         // Levantar contenedores en segundo plano
-        sh "docker-compose -f ${composeFile} up -d"
+        sh "docker-compose -f ${composeFile} up"
       }
     }
     post {
@@ -275,7 +275,7 @@ pipeline {
 
         withCredentials([string(credentialsId: 'emails-recipients', variable: 'EMAIL_LIST')]) {
           emailext(
-            subject: "Reporte de Fallo - Jenkins Pipeline",
+            subject: "TEST",
             body: """
               <html>
                 <body style="font-family: Arial, sans-serif;">
