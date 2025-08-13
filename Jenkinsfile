@@ -234,7 +234,7 @@ pipeline {
         sh "docker-compose -f ${composeFile} build --no-cache"
 
         // Levantar contenedores en segundo plano
-        sh "docker-compose -f ${composeFile} up -d"
+        sh "docker-compose -f ${composeFile} up"
       }
     }
     post {
