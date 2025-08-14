@@ -123,14 +123,13 @@ branchesToAnalyze.each { targetBranch ->
         def projectTokenId = branchConfig['backend']['tokenId']
 
         withCredentials([string(credentialsId: projectTokenId, variable: 'SONAR_TOKEN')]) {
-            dir('pharmacy') {
+            
                 sh """
                     mvn sonar:sonar \
                       -Dsonar.projectKey=${projectKey} \
                       -Dsonar.host.url=${SONAR_HOST_URL} \
                       -Dsonar.login=${SONAR_TOKEN}
                 """
-            }
                         }
                     }
                 }
@@ -220,7 +219,6 @@ branchesToAnalyze.each { targetBranch ->
                     def projectTokenId = branchConfig['frontend']['tokenId']
 
                     withCredentials([string(credentialsId: projectTokenId, variable: 'SONAR_TOKEN')]) {
-                        dir('pharmacy-app') {
                             sh """
                                 npx sonar-scanner \
                                   -Dsonar.projectKey=${projectKey} \
@@ -229,9 +227,7 @@ branchesToAnalyze.each { targetBranch ->
                                   -Dsonar.login=${SONAR_TOKEN} \
                                   -Dsonar.language=ts \
                                   -Dsonar.sourceEncoding=UTF-8
-                            """
-                        }
-                
+                            """   
                         }
                     }
                 }
