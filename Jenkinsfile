@@ -13,7 +13,10 @@ pipeline {
 
     stage('Notify Build Start') {
       steps {
-        githubNotify context: 'continuous-integration/jenkins/branch', status: 'PENDING', description: 'Pipeline iniciado'
+        script {
+          def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
+          githubNotify context: contextName, status: 'PENDING', description: 'Pipeline iniciado'
+      }
       }
     }
 
@@ -111,12 +114,24 @@ pipeline {
 
           withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
             dir('pharmacy') {
-              sh """
-                mvn sonar:sonar \
-                  -Dsonar.projectKey=${key} \
-                  -Dsonar.host.url=${SONAR_HOST_URL} \
-                  -Dsonar.login=${SONAR_TOKEN}
-              """
+            if (env.CHANGE_ID) {
+                sh """
+                  mvn sonar:sonar \
+                    -Dsonar.projectKey=${key} \
+                    -Dsonar.host.url=${SONAR_HOST_URL} \
+                    -Dsonar.login=${SONAR_TOKEN} \
+                    -Dsonar.pullrequest.key=${env.CHANGE_ID} \
+                    -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} \
+                    -Dsonar.pullrequest.base=${env.CHANGE_TARGET}
+                """
+              } else {
+                sh """
+                  mvn sonar:sonar \
+                    -Dsonar.projectKey=${key} \
+                    -Dsonar.host.url=${SONAR_HOST_URL} \
+                    -Dsonar.login=${SONAR_TOKEN}
+                """
+              }
             }
           }
         }
@@ -185,15 +200,30 @@ pipeline {
 
           withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
             dir('frontend') {
-              sh """
-                npx sonar-scanner \
-                  -Dsonar.projectKey=${key} \
-                  -Dsonar.sources=. \
-                  -Dsonar.host.url=${SONAR_HOST_URL} \
-                  -Dsonar.login=${SONAR_TOKEN} \
-                  -Dsonar.language=ts \
-                  -Dsonar.sourceEncoding=UTF-8
-              """
+   if (env.CHANGE_ID) {
+                sh """
+                  npx sonar-scanner \
+                    -Dsonar.projectKey=${key} \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=${SONAR_HOST_URL} \
+                    -Dsonar.login=${SONAR_TOKEN} \
+                    -Dsonar.pullrequest.key=${env.CHANGE_ID} \
+                    -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} \
+                    -Dsonar.pullrequest.base=${env.CHANGE_TARGET} \
+                    -Dsonar.language=ts \
+                    -Dsonar.sourceEncoding=UTF-8
+                """
+              } else {
+                sh """
+              npx sonar-scanner \
+                -Dsonar.projectKey=${key} \
+                -Dsonar.sources=. \
+                -Dsonar.host.url=${SONAR_HOST_URL} \
+                -Dsonar.login=${SONAR_TOKEN} \
+                -Dsonar.language=ts \
+                -Dsonar.sourceEncoding=UTF-8
+                """
+              }
             }
           }
         }
@@ -217,6 +247,7 @@ pipeline {
 
 
       stage('Deploy') {
+    when { expression { return !env.CHANGE_ID } }  // Solo ejecuta si no es PR
     steps {
       script {
         def branch = env.BRANCH_NAME.toLowerCase()
@@ -282,10 +313,8 @@ pipeline {
 
 
         // Notificar a GitHub que falló
-        githubNotify context: 'continuous-integration/jenkins/branch',
-                      status: 'FAILURE',
-                      description: "Falló en ${failedStage}",
-                      targetUrl: env.BUILD_URL
+        def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
+        githubNotify context: contextName, status: 'FAILURE', description: "Falló en ${failedStage}", targetUrl: env.BUILD_URL
                       
         withCredentials([string(credentialsId: 'emails-recipients', variable: 'EMAIL_LIST')]) {
           emailext(
@@ -315,10 +344,8 @@ pipeline {
 
     success {
       script {
-              githubNotify context: 'continuous-integration/jenkins/branch',
-                         status: 'SUCCESS',
-                         description: "Pipeline OK",
-                         targetUrl: env.BUILD_URL
+        def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
+        githubNotify context: contextName, status: 'SUCCESS', description: "Pipeline OK", targetUrl: env.BUILD_URL
       }
     }
   }
