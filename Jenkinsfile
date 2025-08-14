@@ -97,13 +97,12 @@ pipeline {
       steps {
         echo "==== [SonarQube Backend] Iniciando ===="
         script {
-          def branch = env.BRANCH_NAME.toLowerCase()
+          def branch = env.CHANGE_ID ? env.CHANGE_TARGET.toLowerCase() : env.BRANCH_NAME.toLowerCase()
           def sonarConfig = [
-            'main': ['backend': ['projectKey': 'FP-BackendMain', 'tokenId': 'sonarqube-token-backend-main']],
-            'development': ['backend': ['projectKey': 'FP-BackendDev', 'tokenId': 'sonarqube-token-backend-dev']],
-            'qa': ['backend': ['projectKey': 'FP-BackendQA', 'tokenId': 'sonarqube-token-backend-qa']]
+            'main': [...],
+            'development': [...],
+            'qa': [...]
           ]
-
           def config = sonarConfig[branch]
           if (!config) {
             error "No hay configuración de SonarQube para la rama '${branch}'"
@@ -183,13 +182,12 @@ pipeline {
       steps {
         echo "==== [SonarQube Frontend] Iniciando ===="
         script {
-          def branch = env.BRANCH_NAME.toLowerCase()
+          def branch = env.CHANGE_ID ? env.CHANGE_TARGET.toLowerCase() : env.BRANCH_NAME.toLowerCase()
           def sonarConfig = [
-            'main': ['frontend': ['projectKey': 'FP-FrontendMain', 'tokenId': 'sonarqube-token-frontend-main']],
-            'development': ['frontend': ['projectKey': 'FP-FrontendDev', 'tokenId': 'sonarqube-token-frontend-dev']],
-            'qa': ['frontend': ['projectKey': 'FP-FrontendQA', 'tokenId': 'sonarqube-token-frontend-qa']]
+            'main': [...],
+            'development': [...],
+            'qa': [...]
           ]
-
           def config = sonarConfig[branch]
           if (!config) {
             error "No hay configuración de SonarQube para la rama '${branch}'"
