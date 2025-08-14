@@ -10,6 +10,13 @@ pipeline {
   }
 
   stages {
+
+    stage('Notify Build Start') {
+      steps {
+        githubNotify context: 'continuous-integration/jenkins/branch', status: 'PENDING', description: 'Pipeline iniciado'
+      }
+    }
+
     stage('Checkout') {
       steps {
         echo "==== [Checkout] Iniciando ===="
@@ -273,6 +280,13 @@ pipeline {
           return "<li><b>${stageName}:</b> <span style='color:${color}'>${status}</span></li>"
         }.join("")
 
+
+        // Notificar a GitHub que falló
+        githubNotify context: 'continuous-integration/jenkins/branch',
+                      status: 'FAILURE',
+                      description: "Falló en ${failedStage}",
+                      targetUrl: env.BUILD_URL
+                      
         withCredentials([string(credentialsId: 'emails-recipients', variable: 'EMAIL_LIST')]) {
           emailext(
             subject: "TEST",
@@ -296,6 +310,15 @@ pipeline {
             to: EMAIL_LIST
           )
         }
+      }
+    }
+
+    success {
+      script {
+              githubNotify context: 'continuous-integration/jenkins/branch',
+                         status: 'SUCCESS',
+                         description: "Pipeline OK",
+                         targetUrl: env.BUILD_URL
       }
     }
   }
