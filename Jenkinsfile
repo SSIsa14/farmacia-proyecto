@@ -202,20 +202,26 @@ pipeline {
             dir('frontend') {
    if (env.CHANGE_ID) {
                 sh """
-                  mvn sonar:sonar \
+                  npx sonar-scanner \
                     -Dsonar.projectKey=${key} \
+                    -Dsonar.sources=. \
                     -Dsonar.host.url=${SONAR_HOST_URL} \
                     -Dsonar.login=${SONAR_TOKEN} \
                     -Dsonar.pullrequest.key=${env.CHANGE_ID} \
                     -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} \
-                    -Dsonar.pullrequest.base=${env.CHANGE_TARGET}
+                    -Dsonar.pullrequest.base=${env.CHANGE_TARGET} \
+                    -Dsonar.language=ts \
+                    -Dsonar.sourceEncoding=UTF-8
                 """
               } else {
                 sh """
-                  mvn sonar:sonar \
-                    -Dsonar.projectKey=${key} \
-                    -Dsonar.host.url=${SONAR_HOST_URL} \
-                    -Dsonar.login=${SONAR_TOKEN}
+              npx sonar-scanner \
+                -Dsonar.projectKey=${key} \
+                -Dsonar.sources=. \
+                -Dsonar.host.url=${SONAR_HOST_URL} \
+                -Dsonar.login=${SONAR_TOKEN} \
+                -Dsonar.language=ts \
+                -Dsonar.sourceEncoding=UTF-8
                 """
               }
             }
