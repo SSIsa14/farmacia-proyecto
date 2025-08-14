@@ -99,9 +99,9 @@ pipeline {
         script {
           def branch = env.CHANGE_ID ? env.CHANGE_TARGET.toLowerCase() : env.BRANCH_NAME.toLowerCase()
           def sonarConfig = [
-            'main': [...],
-            'development': [...],
-            'qa': [...]
+            'main': ['backend': ['projectKey': 'FP-BackendMain', 'tokenId': 'sonarqube-token-backend-main']],
+            'development': ['backend': ['projectKey': 'FP-BackendDev', 'tokenId': 'sonarqube-token-backend-dev']],
+            'qa': ['backend': ['projectKey': 'FP-BackendQA', 'tokenId': 'sonarqube-token-backend-qa']]
           ]
           def config = sonarConfig[branch]
           if (!config) {
@@ -184,9 +184,9 @@ pipeline {
         script {
           def branch = env.CHANGE_ID ? env.CHANGE_TARGET.toLowerCase() : env.BRANCH_NAME.toLowerCase()
           def sonarConfig = [
-            'main': [...],
-            'development': [...],
-            'qa': [...]
+           'main': ['backend': ['projectKey': 'FP-BackendMain', 'tokenId': 'sonarqube-token-backend-main']],
+          'development': ['backend': ['projectKey': 'FP-BackendDev', 'tokenId': 'sonarqube-token-backend-dev']],
+          'qa': ['backend': ['projectKey': 'FP-BackendQA', 'tokenId': 'sonarqube-token-backend-qa']]
           ]
           def config = sonarConfig[branch]
           if (!config) {
