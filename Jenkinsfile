@@ -113,14 +113,28 @@ pipeline {
 
           withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
             dir('pharmacy') {
-              if (env.CHANGE_ID) {
-                  sh """
-                    mvn sonar:sonar \
-                      -Dsonar.projectKey=${key} \
-                      -Dsonar.host.url=${SONAR_HOST_URL} \
-                      -Dsonar.login=${SONAR_TOKEN} \
-                      -Dsonar.branch.name=${env.CHANGE_BRANCH}
-                  """
+            if (env.CHANGE_ID) {
+                // Lista de ramas a analizar
+                def branchesToAnalyze = ['main', 'qa', 'development']
+
+                branchesToAnalyze.each { targetBranch ->
+                    def config = sonarConfig[targetBranch]
+                    if (config) {
+                        def key = config['backend']['projectKey']
+                        def tokenId = config['backend']['tokenId']
+
+                        withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
+                            dir('pharmacy') {
+                                sh """
+                                    mvn sonar:sonar \
+                                      -Dsonar.projectKey=${key} \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN}
+                                """
+                            }
+                        }
+                    }
+                }
               } else {
                   sh """
                     mvn sonar:sonar \
@@ -198,16 +212,30 @@ pipeline {
           withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
             dir('frontend') {
             if (env.CHANGE_ID) {
-                sh """
-                  npx sonar-scanner \
-                    -Dsonar.projectKey=${key} \
-                    -Dsonar.sources=. \
-                    -Dsonar.host.url=${SONAR_HOST_URL} \
-                    -Dsonar.login=${SONAR_TOKEN} \
-                    -Dsonar.branch.name=${env.CHANGE_BRANCH} \
-                    -Dsonar.language=ts \
-                    -Dsonar.sourceEncoding=UTF-8
-                """
+                // Lista de ramas a analizar
+                def branchesToAnalyze = ['main', 'qa', 'development']
+
+                branchesToAnalyze.each { targetBranch ->
+                    def config = sonarConfig[targetBranch]
+                    if (config) {
+                        def key = config['frontend']['projectKey']
+                        def tokenId = config['frontend']['tokenId']
+
+                        withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
+                            dir('pharmacy-app') {
+                                sh """
+                                    npx sonar-scanner \
+                                      -Dsonar.projectKey=${key} \
+                                      -Dsonar.sources=. \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN} \
+                                      -Dsonar.language=ts \
+                                      -Dsonar.sourceEncoding=UTF-8
+                                """
+                            }
+                        }
+                    }
+                }
             } else {
                 sh """
                   npx sonar-scanner \
