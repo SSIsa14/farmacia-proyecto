@@ -113,24 +113,23 @@ pipeline {
 
           withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
             dir('pharmacy') {
-            if (env.CHANGE_ID) {
-                sh """
-                  mvn sonar:sonar \
-                    -Dsonar.projectKey=${key} \
-                    -Dsonar.host.url=${SONAR_HOST_URL} \
-                    -Dsonar.login=${SONAR_TOKEN} \
-                    -Dsonar.pullrequest.key=${env.CHANGE_ID} \
-                    -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} \
-                    -Dsonar.pullrequest.base=${env.CHANGE_TARGET}
-                """
+              if (env.CHANGE_ID) {
+                  sh """
+                    mvn sonar:sonar \
+                      -Dsonar.projectKey=${key} \
+                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                      -Dsonar.login=${SONAR_TOKEN} \
+                      -Dsonar.branch.name=${env.CHANGE_BRANCH}
+                  """
               } else {
-                sh """
-                  mvn sonar:sonar \
-                    -Dsonar.projectKey=${key} \
-                    -Dsonar.host.url=${SONAR_HOST_URL} \
-                    -Dsonar.login=${SONAR_TOKEN}
-                """
+                  sh """
+                    mvn sonar:sonar \
+                      -Dsonar.projectKey=${key} \
+                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                      -Dsonar.login=${SONAR_TOKEN}
+                  """
               }
+
             }
           }
         }
@@ -198,30 +197,29 @@ pipeline {
 
           withCredentials([string(credentialsId: tokenId, variable: 'SONAR_TOKEN')]) {
             dir('frontend') {
-   if (env.CHANGE_ID) {
+            if (env.CHANGE_ID) {
                 sh """
                   npx sonar-scanner \
                     -Dsonar.projectKey=${key} \
                     -Dsonar.sources=. \
                     -Dsonar.host.url=${SONAR_HOST_URL} \
                     -Dsonar.login=${SONAR_TOKEN} \
-                    -Dsonar.pullrequest.key=${env.CHANGE_ID} \
-                    -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} \
-                    -Dsonar.pullrequest.base=${env.CHANGE_TARGET} \
+                    -Dsonar.branch.name=${env.CHANGE_BRANCH} \
                     -Dsonar.language=ts \
                     -Dsonar.sourceEncoding=UTF-8
                 """
-              } else {
+            } else {
                 sh """
-              npx sonar-scanner \
-                -Dsonar.projectKey=${key} \
-                -Dsonar.sources=. \
-                -Dsonar.host.url=${SONAR_HOST_URL} \
-                -Dsonar.login=${SONAR_TOKEN} \
-                -Dsonar.language=ts \
-                -Dsonar.sourceEncoding=UTF-8
+                  npx sonar-scanner \
+                    -Dsonar.projectKey=${key} \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=${SONAR_HOST_URL} \
+                    -Dsonar.login=${SONAR_TOKEN} \
+                    -Dsonar.language=ts \
+                    -Dsonar.sourceEncoding=UTF-8
                 """
-              }
+            }
+
             }
           }
         }
