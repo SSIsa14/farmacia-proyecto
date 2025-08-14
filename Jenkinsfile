@@ -1,6 +1,6 @@
 def stageStatus = [:]  // etapa -> estado
 def failedStage = ""
-def allStages = ['Notify Build Start', 'Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis', 'Deploy']
+def allStages = ['Notify Build Start','Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis', 'Deploy']
 
 pipeline {
   agent any
@@ -11,21 +11,11 @@ pipeline {
 
   stages {
 
-        stage('Notify Build Start') {
-            steps {
-                script {
-                    def githubContext = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
-                    def description = env.CHANGE_ID ? "Pipeline PR #${env.CHANGE_ID}" : "Pipeline rama ${env.BRANCH_NAME}"
-                    githubNotify(
-                        credentialsId: 'github-token',  // reemplaza con tu token
-                        repo: 'SSIsa14/farmacia-proyecto', // tu repo
-                        context: githubContext,
-                        status: 'PENDING',
-                        description: description
-                    )
-                }
-            }
-        }
+    stage('Notify Build Start') {
+      steps {
+        githubNotify context: 'continuous-integration/jenkins/branch', status: 'PENDING', description: 'Pipeline iniciado'
+      }
+    }
 
     stage('Checkout') {
       steps {
@@ -292,15 +282,11 @@ pipeline {
 
 
         // Notificar a GitHub que falló
-           githubNotify(
-                    credentialsId: 'github-token',
-                    repo: 'SSIsa14/farmacia-proyecto',
-                    context: githubContext,
-                    status: 'FAILURE',
-                    description: "Falló en ${failedStage}",
-                    targetUrl: env.BUILD_URL
-            )       
-
+        githubNotify context: 'continuous-integration/jenkins/branch',
+                      status: 'FAILURE',
+                      description: "Falló en ${failedStage}",
+                      targetUrl: env.BUILD_URL
+                      
         withCredentials([string(credentialsId: 'emails-recipients', variable: 'EMAIL_LIST')]) {
           emailext(
             subject: "TEST",
@@ -329,15 +315,10 @@ pipeline {
 
     success {
       script {
-                def githubContext = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
-                githubNotify(
-                    credentialsId: 'github-token',
-                    repo: 'SSIsa14/farmacia-proyecto',
-                    context: githubContext,
-                    status: 'SUCCESS',
-                    description: "Pipeline OK",
-                    targetUrl: env.BUILD_URL
-                )
+              githubNotify context: 'continuous-integration/jenkins/branch',
+                         status: 'SUCCESS',
+                         description: "Pipeline OK",
+                         targetUrl: env.BUILD_URL
       }
     }
   }
