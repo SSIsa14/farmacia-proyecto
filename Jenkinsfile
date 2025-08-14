@@ -1,6 +1,6 @@
 def stageStatus = [:]  // etapa -> estado
 def failedStage = ""
-def allStages = ['Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis', 'Deploy']
+def allStages = ['Notify Build Start','Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis', 'Deploy']
 
 pipeline {
   agent any
