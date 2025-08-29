@@ -1,313 +1,410 @@
-/*
 package com.example.pharmacy.controllers;
 
 import com.example.pharmacy.model.Usuario;
-import com.example.pharmacy.repository.RolRepository;
+import com.example.pharmacy.model.Rol;
 import com.example.pharmacy.service.UsuarioService;
 import com.example.pharmacy.util.JwtUtils;
+import com.example.pharmacy.repository.RolRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(AuthController.class)
-public class AuthControllerTest {
+@ExtendWith(MockitoExtension.class)
+class AuthControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+    @Mock
     private UsuarioService usuarioService;
 
-    @MockBean
+    @Mock
     private JwtUtils jwtUtils;
 
-    @MockBean
+    @Mock
     private PasswordEncoder passwordEncoder;
 
-    @MockBean
+    @Mock
     private RolRepository rolRepository;
 
-    private Usuario exampleUser;
+    @InjectMocks
+    private AuthController authController;
+
+    private Usuario testUsuario;
+    private Map<String, String> validRegistrationData;
+    private Map<String, String> validLoginData;
 
     @BeforeEach
     void setUp() {
-        exampleUser = new Usuario();
-        exampleUser.setIdUsuario(1L);
-        exampleUser.setCorreo("test@example.com");
-        exampleUser.setNombre("Test User");
-        exampleUser.setPasswordHash("hashedPassword");
-        exampleUser.setActivo(true);
-        exampleUser.setPerfilCompleto(true);
-        exampleUser.setPrimerLogin(true);
-    }
+        testUsuario = new Usuario();
+        testUsuario.setIdUsuario(1L);
+        testUsuario.setCorreo("test@example.com");
+        testUsuario.setNombre("Test User");
+        testUsuario.setPasswordHash("hashedPassword");
+        testUsuario.setActivo("Y");
+        testUsuario.setPerfilCompleto("Y");
+        testUsuario.setPrimerLogin("N");
 
-    // --- Register Tests ---
-    @Test
-    void register_success_withRole() throws Exception {
-        when(usuarioService.register(any())).thenReturn(exampleUser);
-        when(rolRepository.existsById(5L)).thenReturn(true);
-        doNothing().when(usuarioService).assignRolesToUser(exampleUser.getIdUsuario(), List.of(5L));
-        when(usuarioService.getUserRoles(exampleUser.getIdUsuario())).thenReturn(List.of("ADMIN"));
-        when(jwtUtils.generateToken(eq(exampleUser.getCorreo()), anyString(), anyList())).thenReturn("token123");
+        validRegistrationData = new HashMap<>();
+        validRegistrationData.put("correo", "test@example.com");
+        validRegistrationData.put("password", "password123");
+        validRegistrationData.put("nombre", "Test User");
 
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "password": "password123",
-                "nombre": "Test User",
-                "rol": "5"
-            }
-        """;
-
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message", containsString("exitosamente")))
-                .andExpect(jsonPath("$.correo", is("test@example.com")))
-                .andExpect(jsonPath("$.rol", is("ADMIN")))
-                .andExpect(jsonPath("$.roles[0]", is("ADMIN")))
-                .andExpect(jsonPath("$.token", is("token123")));
+        validLoginData = new HashMap<>();
+        validLoginData.put("correo", "test@example.com");
+        validLoginData.put("password", "password123");
     }
 
     @Test
-    void register_fails_missingEmailOrPassword() throws Exception {
-        String jsonBody = """
-            {
-                "correo": "",
-                "password": ""
-            }
-        """;
+    void testRegister_Success() {
+        // Arrange
+        when(usuarioService.register(any(Usuario.class))).thenReturn(testUsuario);
+        when(usuarioService.getUserRoles(anyLong())).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken(anyString(), anyString(), anyList())).thenReturn("jwt-token");
 
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", containsString("Correo y contraseña requeridos")));
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Usuario registrado exitosamente. Un administrador activará tu cuenta pronto.", 
+                    response.getBody().get("message"));
+        assertEquals("test@example.com", response.getBody().get("correo"));
+        assertEquals("USUARIO", response.getBody().get("rol"));
+        assertEquals("jwt-token", response.getBody().get("token"));
+        
+        verify(usuarioService).register(any(Usuario.class));
+        verify(jwtUtils).generateToken(anyString(), anyString(), anyList());
     }
 
     @Test
-    void register_assignRoleFailsButStillRegisters() throws Exception {
-        when(usuarioService.register(any())).thenReturn(exampleUser);
-        when(rolRepository.existsById(99L)).thenReturn(false);
-        when(usuarioService.getUserRoles(exampleUser.getIdUsuario())).thenReturn(List.of("INVITADO"));
-        when(jwtUtils.generateToken(anyString(), anyString(), anyList())).thenReturn("tokenABC");
+    void testRegister_WithCustomRole() {
+        // Arrange
+        validRegistrationData.put("rol", "2");
+        when(usuarioService.register(any(Usuario.class))).thenReturn(testUsuario);
+        when(rolRepository.existsById(2L)).thenReturn(true);
+        when(usuarioService.getUserRoles(anyLong())).thenReturn(Arrays.asList("ADMIN"));
+        when(jwtUtils.generateToken(anyString(), anyString(), anyList())).thenReturn("jwt-token");
 
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "password": "password123",
-                "rol": "99"
-            }
-        """;
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
 
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.rol", is("INVITADO")))
-                .andExpect(jsonPath("$.token", is("tokenABC")));
-    }
-
-    // --- Login Tests ---
-    @Test
-    void login_success_profileComplete() throws Exception {
-        when(usuarioService.findByCorreo("test@example.com")).thenReturn(exampleUser);
-        when(passwordEncoder.matches("rawPassword", exampleUser.getPasswordHash())).thenReturn(true);
-        when(usuarioService.getUserRoles(exampleUser.getIdUsuario())).thenReturn(List.of("ADMIN"));
-        when(jwtUtils.generateToken("test@example.com", "ADMIN", List.of("ADMIN"))).thenReturn("tokenXYZ");
-        doNothing().when(usuarioService).updateFirstLogin(exampleUser.getIdUsuario());
-
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "password": "rawPassword"
-            }
-        """;
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token", is("tokenXYZ")))
-                .andExpect(jsonPath("$.user.correo", is("test@example.com")))
-                .andExpect(jsonPath("$.user.perfilCompleto", is("Y")))
-                .andExpect(jsonPath("$.user.primerLogin", is("Y")));
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(usuarioService).assignRolesToUser(anyLong(), eq(Arrays.asList(2L)));
     }
 
     @Test
-    void login_fails_invalidCredentials() throws Exception {
-        when(usuarioService.findByCorreo("test@example.com")).thenReturn(exampleUser);
-        when(passwordEncoder.matches("wrongPass", exampleUser.getPasswordHash())).thenReturn(false);
+    void testRegister_WithInvalidRole() {
+        // Arrange
+        validRegistrationData.put("rol", "invalid");
+        when(usuarioService.register(any(Usuario.class))).thenReturn(testUsuario);
+        when(usuarioService.getUserRoles(anyLong())).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken(anyString(), anyString(), anyList())).thenReturn("jwt-token");
 
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "password": "wrongPass"
-            }
-        """;
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
 
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error", containsString("Credenciales inválidas")));
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(usuarioService, never()).assignRolesToUser(anyLong(), anyList());
     }
 
     @Test
-    void login_fails_userInactive() throws Exception {
-        exampleUser.setActivo(false);
-        when(usuarioService.findByCorreo("test@example.com")).thenReturn(exampleUser);
-        when(passwordEncoder.matches("rawPassword", exampleUser.getPasswordHash())).thenReturn(true);
+    void testRegister_WithNonExistentRole() {
+        // Arrange
+        validRegistrationData.put("rol", "999");
+        when(usuarioService.register(any(Usuario.class))).thenReturn(testUsuario);
+        when(rolRepository.existsById(999L)).thenReturn(false);
+        when(usuarioService.getUserRoles(anyLong())).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken(anyString(), anyString(), anyList())).thenReturn("jwt-token");
 
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "password": "rawPassword"
-            }
-        """;
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
 
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error", containsString("Usuario inactivo")));
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(usuarioService, never()).assignRolesToUser(anyLong(), anyList());
     }
 
     @Test
-    void login_fails_noRolesAssigned() throws Exception {
-        when(usuarioService.findByCorreo("test@example.com")).thenReturn(exampleUser);
-        when(passwordEncoder.matches("rawPassword", exampleUser.getPasswordHash())).thenReturn(true);
-        when(usuarioService.getUserRoles(exampleUser.getIdUsuario())).thenReturn(List.of());
+    void testRegister_WithDefaultName() {
+        // Arrange
+        validRegistrationData.remove("nombre");
+        when(usuarioService.register(any(Usuario.class))).thenReturn(testUsuario);
+        when(usuarioService.getUserRoles(anyLong())).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken(anyString(), anyString(), anyList())).thenReturn("jwt-token");
 
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "password": "rawPassword"
-            }
-        """;
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
 
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error", containsString("Usuario sin roles asignados")))
-                .andExpect(jsonPath("$.requiresAction", is("AWAIT_ROLE_ASSIGNMENT")));
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(usuarioService).register(argThat(usuario -> "test".equals(usuario.getNombre())));
     }
 
     @Test
-    void login_profileIncomplete_requiresCompleteProfile() throws Exception {
-        exampleUser.setPerfilCompleto(false);
-        exampleUser.setPrimerLogin(false);
-        when(usuarioService.findByCorreo("test@example.com")).thenReturn(exampleUser);
-        when(passwordEncoder.matches("rawPassword", exampleUser.getPasswordHash())).thenReturn(true);
-        when(usuarioService.getUserRoles(exampleUser.getIdUsuario())).thenReturn(List.of("USER"));
-        when(jwtUtils.generateToken("test@example.com", "USER", List.of("USER"))).thenReturn("tokenIncomplete");
+    void testRegister_MissingEmail() {
+        // Arrange
+        validRegistrationData.remove("correo");
 
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "password": "rawPassword"
-            }
-        """;
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
 
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.requiresAction", is("COMPLETE_PROFILE")))
-                .andExpect(jsonPath("$.token", is("tokenIncomplete")))
-                .andExpect(jsonPath("$.user.perfilCompleto", is("N")));
-    }
-
-    // --- Complete Profile Tests ---
-    @Test
-    void completeProfile_success() throws Exception {
-        exampleUser.setNombre("Old Name");
-        when(usuarioService.findByCorreo("test@example.com")).thenReturn(exampleUser);
-        when(usuarioService.completeProfile(exampleUser.getIdUsuario())).thenReturn(true);
-        when(usuarioService.getUserRoles(exampleUser.getIdUsuario())).thenReturn(List.of("ADMIN"));
-        when(jwtUtils.generateToken("test@example.com", "ADMIN", List.of("ADMIN"))).thenReturn("tokenComplete");
-
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "nombre": "New Name"
-            }
-        """;
-
-        mockMvc.perform(post("/api/auth/complete-profile")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message", containsString("Perfil completado exitosamente")))
-                .andExpect(jsonPath("$.user.nombre", is("New Name")))
-                .andExpect(jsonPath("$.perfilCompleto", is("Y")))
-                .andExpect(jsonPath("$.token", is("tokenComplete")));
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Correo y contraseña requeridos", response.getBody().get("error"));
     }
 
     @Test
-    void completeProfile_fails_missingCorreo() throws Exception {
-        String jsonBody = """
-            {
-                "nombre": "New Name"
-            }
-        """;
+    void testRegister_MissingPassword() {
+        // Arrange
+        validRegistrationData.remove("password");
 
-        mockMvc.perform(post("/api/auth/complete-profile")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", containsString("Correo requerido")));
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Correo y contraseña requeridos", response.getBody().get("error"));
     }
 
     @Test
-    void completeProfile_fails_missingNombre() throws Exception {
-        String jsonBody = """
-            {
-                "correo": "test@example.com"
-            }
-        """;
+    void testRegister_ServiceException() {
+        // Arrange
+        when(usuarioService.register(any(Usuario.class))).thenThrow(new RuntimeException("Service error"));
 
-        mockMvc.perform(post("/api/auth/complete-profile")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", containsString("Nombre requerido")));
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.register(validRegistrationData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Service error", response.getBody().get("error"));
     }
 
     @Test
-    void completeProfile_fails_completeProfileFalse() throws Exception {
-        when(usuarioService.findByCorreo("test@example.com")).thenReturn(exampleUser);
-        when(usuarioService.completeProfile(exampleUser.getIdUsuario())).thenReturn(false);
+    void testLogin_Success() {
+        // Arrange
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(true);
+        when(usuarioService.getUserRoles(1L)).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken("test@example.com", "USUARIO", Arrays.asList("USUARIO"))).thenReturn("jwt-token");
 
-        String jsonBody = """
-            {
-                "correo": "test@example.com",
-                "nombre": "New Name"
-            }
-        """;
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(validLoginData);
 
-        mockMvc.perform(post("/api/auth/complete-profile")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", containsString("No se pudo completar el perfil")));
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("jwt-token", response.getBody().get("token"));
+        assertNotNull(response.getBody().get("user"));
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> userData = (Map<String, Object>) response.getBody().get("user");
+        assertEquals("Y", userData.get("perfilCompleto"));
+        assertEquals("N", userData.get("primerLogin"));
+    }
+
+    @Test
+    void testLogin_FirstLogin() {
+        // Arrange
+        testUsuario.setPrimerLogin("Y");
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(true);
+        when(usuarioService.getUserRoles(1L)).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken("test@example.com", "USUARIO", Arrays.asList("USUARIO"))).thenReturn("jwt-token");
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(validLoginData);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(usuarioService).updateFirstLogin(1L);
+    }
+
+    @Test
+    void testLogin_IncompleteProfile() {
+        // Arrange
+        testUsuario.setPerfilCompleto("N");
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(true);
+        when(usuarioService.getUserRoles(1L)).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken("test@example.com", "USUARIO", Arrays.asList("USUARIO"))).thenReturn("jwt-token");
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(validLoginData);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("COMPLETE_PROFILE", response.getBody().get("requiresAction"));
+        assertEquals("N", ((Map<?, ?>) response.getBody().get("user")).get("perfilCompleto"));
+    }
+
+    @Test
+    void testLogin_MissingCredentials() {
+        // Arrange
+        Map<String, String> invalidData = new HashMap<>();
+        invalidData.put("correo", "test@example.com");
+        // Missing password
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(invalidData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Correo y contraseña requeridos", response.getBody().get("error"));
+    }
+
+    @Test
+    void testLogin_InvalidCredentials() {
+        // Arrange
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(false);
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(validLoginData);
+
+        // Assert
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("Credenciales inválidas", response.getBody().get("error"));
+    }
+
+    @Test
+    void testLogin_InactiveUser() {
+        // Arrange
+        testUsuario.setActivo("N");
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(true);
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(validLoginData);
+
+        // Assert
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertEquals("Usuario inactivo", response.getBody().get("error"));
+    }
+
+    @Test
+    void testLogin_NoRoles() {
+        // Arrange
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(passwordEncoder.matches("password123", "hashedPassword")).thenReturn(true);
+        when(usuarioService.getUserRoles(1L)).thenReturn(Collections.emptyList());
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(validLoginData);
+
+        // Assert
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertEquals("Usuario sin roles asignados", response.getBody().get("error"));
+        assertEquals("AWAIT_ROLE_ASSIGNMENT", response.getBody().get("requiresAction"));
+    }
+
+    @Test
+    void testLogin_ServiceException() {
+        // Arrange
+        when(usuarioService.findByCorreo("test@example.com")).thenThrow(new RuntimeException("Service error"));
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.login(validLoginData);
+
+        // Assert
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+        assertEquals("Service error", response.getBody().get("error"));
+    }
+
+    @Test
+    void testCompleteProfile_Success() {
+        // Arrange
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("correo", "test@example.com");
+        profileData.put("nombre", "Updated Name");
+
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(usuarioService.completeProfile(1L)).thenReturn(true);
+        when(usuarioService.getUserRoles(1L)).thenReturn(Arrays.asList("USUARIO"));
+        when(jwtUtils.generateToken("test@example.com", "USUARIO", Arrays.asList("USUARIO"))).thenReturn("jwt-token");
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.completeProfile(profileData);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("Perfil completado exitosamente", response.getBody().get("message"));
+        assertEquals("jwt-token", response.getBody().get("token"));
+        assertEquals("Updated Name", testUsuario.getNombre());
+    }
+
+    @Test
+    void testCompleteProfile_MissingEmail() {
+        // Arrange
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("nombre", "Updated Name");
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.completeProfile(profileData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Correo requerido", response.getBody().get("error"));
+    }
+
+    @Test
+    void testCompleteProfile_MissingName() {
+        // Arrange
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("correo", "test@example.com");
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.completeProfile(profileData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Nombre requerido", response.getBody().get("error"));
+    }
+
+    @Test
+    void testCompleteProfile_ServiceFailure() {
+        // Arrange
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("correo", "test@example.com");
+        profileData.put("nombre", "Updated Name");
+
+        when(usuarioService.findByCorreo("test@example.com")).thenReturn(testUsuario);
+        when(usuarioService.completeProfile(1L)).thenReturn(false);
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.completeProfile(profileData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("No se pudo completar el perfil", response.getBody().get("error"));
+    }
+
+    @Test
+    void testCompleteProfile_ServiceException() {
+        // Arrange
+        Map<String, Object> profileData = new HashMap<>();
+        profileData.put("correo", "test@example.com");
+        profileData.put("nombre", "Updated Name");
+
+        when(usuarioService.findByCorreo("test@example.com")).thenThrow(new RuntimeException("Service error"));
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = authController.completeProfile(profileData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals("Service error", response.getBody().get("error"));
     }
 }
-*/
