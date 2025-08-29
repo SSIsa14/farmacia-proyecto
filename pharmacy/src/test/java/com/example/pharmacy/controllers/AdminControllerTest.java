@@ -1,4 +1,3 @@
-/*
 package com.example.pharmacy.controllers;
 
 import com.example.pharmacy.dto.UserDTO;
@@ -8,173 +7,438 @@ import com.example.pharmacy.repository.RolRepository;
 import com.example.pharmacy.service.UsuarioService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(AdminController.class)
-public class AdminControllerTest {
+@ExtendWith(MockitoExtension.class)
+class AdminControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockBean
+    @Mock
     private UsuarioService usuarioService;
 
-    @MockBean
+    @Mock
     private RolRepository rolRepository;
 
-    private UserDTO exampleUser;
-    private Usuario exampleUsuario;
+    @InjectMocks
+    private AdminController adminController;
+
+    private UserDTO testUserDTO;
+    private Usuario testUsuario;
+    private Rol testRol;
+    private List<UserDTO> testUserList;
 
     @BeforeEach
     void setUp() {
-        exampleUser = new UserDTO();
-        exampleUser.setId(1L);
-        exampleUser.setCorreo("test@example.com");
-        exampleUser.setNombre("Test User");
+        testUserDTO = new UserDTO();
+        testUserDTO.setId(1L);
+        testUserDTO.setCorreo("test@example.com");
+        testUserDTO.setNombre("Test User");
 
-        // Creamos el modelo Usuario que retorna findByCorreo
-        exampleUsuario = new Usuario();
-        exampleUsuario.setCorreo("test@example.com");
-        // Asigna otros campos mínimos necesarios si aplica
+        testUsuario = new Usuario();
+        testUsuario.setIdUsuario(1L);
+        testUsuario.setCorreo("test@example.com");
+        testUsuario.setNombre("Test User");
+
+        testRol = new Rol();
+        testRol.setIdRol(1L);
+        testRol.setNombreRol("USUARIO");
+
+        testUserList = Arrays.asList(testUserDTO);
     }
 
     @Test
-    void getAllUsers_returnsUserList() throws Exception {
-        when(usuarioService.getAllUsers()).thenReturn(List.of(exampleUser));
+    void testGetAllUsers_Success() {
+        // Arrange
+        when(usuarioService.getAllUsers()).thenReturn(testUserList);
 
-        mockMvc.perform(get("/api/admin/users"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(exampleUser.getId()))
-                .andExpect(jsonPath("$[0].correo").value(exampleUser.getCorreo()))
-                .andExpect(jsonPath("$[0].nombre").value(exampleUser.getNombre()));
+        // Act
+        ResponseEntity<List<UserDTO>> response = adminController.getAllUsers();
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(testUserList, response.getBody());
+        verify(usuarioService).getAllUsers();
     }
 
     @Test
-    void filterUsers_returnsFilteredUsers() throws Exception {
-        when(usuarioService.findUsersByFilters(anyString(), any(), any(), anyString()))
-                .thenReturn(List.of(exampleUser));
+    void testGetAllUsers_EmptyList() {
+        // Arrange
+        when(usuarioService.getAllUsers()).thenReturn(Arrays.asList());
 
-        mockMvc.perform(get("/api/admin/users/filter")
-                        .param("email", "test@example.com")
-                        .param("role", "ADMIN"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].correo", is(exampleUser.getCorreo())));
+        // Act
+        ResponseEntity<List<UserDTO>> response = adminController.getAllUsers();
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isEmpty());
+        verify(usuarioService).getAllUsers();
     }
 
     @Test
-    void getUserById_found() throws Exception {
-        when(usuarioService.findByCorreo(anyString())).thenReturn(exampleUsuario);  // modelo
-        when(usuarioService.getMyProfile(anyString())).thenReturn(exampleUser);      // dto
+    void testFilterUsers_Success() {
+        // Arrange
+        String email = "test@example.com";
+        LocalDateTime fromDate = LocalDateTime.now().minusDays(7);
+        LocalDateTime toDate = LocalDateTime.now();
+        String role = "USUARIO";
 
-        mockMvc.perform(get("/api/admin/users/{id}", 1L))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.correo").value(exampleUser.getCorreo()));
+        when(usuarioService.findUsersByFilters(email, fromDate, toDate, role)).thenReturn(testUserList);
+
+        // Act
+        ResponseEntity<List<UserDTO>> response = adminController.filterUsers(email, fromDate, toDate, role);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(testUserList, response.getBody());
+        verify(usuarioService).findUsersByFilters(email, fromDate, toDate, role);
+    }
+
+
+
+    @Test
+    void testFilterUsers_WithNullParameters() {
+        // Arrange
+        when(usuarioService.findUsersByFilters(null, null, null, null)).thenReturn(testUserList);
+
+        // Act
+        ResponseEntity<List<UserDTO>> response = adminController.filterUsers(null, null, null, null);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(testUserList, response.getBody());
+        verify(usuarioService).findUsersByFilters(null, null, null, null);
     }
 
     @Test
-    void getUserById_notFound() throws Exception {
-        when(usuarioService.findByCorreo(anyString())).thenThrow(new RuntimeException("User not found"));
+    void testGetUserById_Success() {
+        // Arrange
+        when(usuarioService.findByCorreo("1")).thenReturn(testUsuario);
+        when(usuarioService.getMyProfile(testUsuario.getCorreo())).thenReturn(testUserDTO);
 
-        mockMvc.perform(get("/api/admin/users/{id}", 99L))
-                .andExpect(status().isNotFound());
+        // Act
+        ResponseEntity<UserDTO> response = adminController.getUserById(1L);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(testUserDTO, response.getBody());
+        verify(usuarioService).findByCorreo("1");
+        verify(usuarioService).getMyProfile(testUsuario.getCorreo());
     }
 
     @Test
-    void activateUser_success() throws Exception {
-        when(usuarioService.activateUser(eq(1L), eq(2L))).thenReturn(true);
+    void testGetUserById_UserNotFound() {
+        // Arrange
+        when(usuarioService.findByCorreo("999")).thenReturn(null);
 
-        String jsonBody = "{\"roleId\":2}";
+        // Act
+        ResponseEntity<UserDTO> response = adminController.getUserById(999L);
 
-        mockMvc.perform(post("/api/admin/users/{id}/activate", 1L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message", is("User activated successfully")));
+        // Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(usuarioService).findByCorreo("999");
     }
 
     @Test
-    void activateUser_missingRoleId() throws Exception {
-        String jsonBody = "{}";
+    void testGetUserById_Exception() {
+        // Arrange
+        when(usuarioService.findByCorreo("1")).thenThrow(new RuntimeException("Service error"));
 
-        mockMvc.perform(post("/api/admin/users/{id}/activate", 1L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", is("Role ID is required")));
+        // Act
+        ResponseEntity<UserDTO> response = adminController.getUserById(1L);
+
+        // Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(usuarioService).findByCorreo("1");
     }
 
     @Test
-    void deactivateUser_success() throws Exception {
+    void testActivateUser_Success() {
+        // Arrange
+        Map<String, Long> activationData = new HashMap<>();
+        activationData.put("roleId", 1L);
+
+        when(usuarioService.activateUser(1L, 1L)).thenReturn(true);
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.activateUser(1L, activationData);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("User activated successfully", response.getBody().get("message"));
+        verify(usuarioService).activateUser(1L, 1L);
+    }
+
+    @Test
+    void testActivateUser_MissingRoleId() {
+        // Arrange
+        Map<String, Long> activationData = new HashMap<>();
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.activateUser(1L, activationData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Role ID is required", response.getBody().get("error"));
+    }
+
+    @Test
+    void testActivateUser_ActivationFailed() {
+        // Arrange
+        Map<String, Long> activationData = new HashMap<>();
+        activationData.put("roleId", 1L);
+
+        when(usuarioService.activateUser(1L, 1L)).thenReturn(false);
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.activateUser(1L, activationData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Failed to activate user", response.getBody().get("error"));
+        verify(usuarioService).activateUser(1L, 1L);
+    }
+
+    @Test
+    void testActivateUser_Exception() {
+        // Arrange
+        Map<String, Long> activationData = new HashMap<>();
+        activationData.put("roleId", 1L);
+
+        when(usuarioService.activateUser(1L, 1L)).thenThrow(new RuntimeException("Service error"));
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.activateUser(1L, activationData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Service error", response.getBody().get("error"));
+        verify(usuarioService).activateUser(1L, 1L);
+    }
+
+    @Test
+    void testDeactivateUser_Success() {
+        // Arrange
         when(usuarioService.deactivateUser(1L)).thenReturn(true);
 
-        mockMvc.perform(post("/api/admin/users/{id}/deactivate", 1L))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message", is("User deactivated successfully")));
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.deactivateUser(1L);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("User deactivated successfully", response.getBody().get("message"));
+        verify(usuarioService).deactivateUser(1L);
     }
 
     @Test
-    void assignRoles_success() throws Exception {
-        doNothing().when(usuarioService).assignRolesToUser(eq(1L), anyList());
+    void testDeactivateUser_DeactivationFailed() {
+        // Arrange
+        when(usuarioService.deactivateUser(1L)).thenReturn(false);
 
-        String jsonBody = "{\"roleIds\":[1,2]}";
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.deactivateUser(1L);
 
-        mockMvc.perform(post("/api/admin/users/{id}/roles", 1L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message", is("Roles assigned successfully")));
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Failed to deactivate user", response.getBody().get("error"));
+        verify(usuarioService).deactivateUser(1L);
     }
 
     @Test
-    void assignRoles_missingRoleIds() throws Exception {
-        String jsonBody = "{}";
+    void testDeactivateUser_Exception() {
+        // Arrange
+        when(usuarioService.deactivateUser(1L)).thenThrow(new RuntimeException("Service error"));
 
-        mockMvc.perform(post("/api/admin/users/{id}/roles", 1L)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(jsonBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", is("Role IDs are required")));
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.deactivateUser(1L);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Service error", response.getBody().get("error"));
+        verify(usuarioService).deactivateUser(1L);
     }
 
     @Test
-    void removeRole_success() throws Exception {
+    void testAssignRoles_Success() {
+        // Arrange
+        Map<String, List<Long>> rolesData = new HashMap<>();
+        rolesData.put("roleIds", Arrays.asList(1L, 2L));
+
+        doNothing().when(usuarioService).assignRolesToUser(1L, Arrays.asList(1L, 2L));
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.assignRoles(1L, rolesData);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Roles assigned successfully", response.getBody().get("message"));
+        verify(usuarioService).assignRolesToUser(1L, Arrays.asList(1L, 2L));
+    }
+
+    @Test
+    void testAssignRoles_MissingRoleIds() {
+        // Arrange
+        Map<String, List<Long>> rolesData = new HashMap<>();
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.assignRoles(1L, rolesData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Role IDs are required", response.getBody().get("error"));
+    }
+
+    @Test
+    void testAssignRoles_EmptyRoleIds() {
+        // Arrange
+        Map<String, List<Long>> rolesData = new HashMap<>();
+        rolesData.put("roleIds", Arrays.asList());
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.assignRoles(1L, rolesData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Role IDs are required", response.getBody().get("error"));
+    }
+
+    @Test
+    void testAssignRoles_Exception() {
+        // Arrange
+        Map<String, List<Long>> rolesData = new HashMap<>();
+        rolesData.put("roleIds", Arrays.asList(1L, 2L));
+
+        doThrow(new RuntimeException("Service error")).when(usuarioService).assignRolesToUser(1L, Arrays.asList(1L, 2L));
+
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.assignRoles(1L, rolesData);
+
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Service error", response.getBody().get("error"));
+        verify(usuarioService).assignRolesToUser(1L, Arrays.asList(1L, 2L));
+    }
+
+    @Test
+    void testRemoveRole_Success() {
+        // Arrange
         doNothing().when(usuarioService).removeRolFromUser(1L, 2L);
 
-        mockMvc.perform(delete("/api/admin/users/{userId}/roles/{roleId}", 1L, 2L))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message", is("Role removed successfully")));
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.removeRole(1L, 2L);
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Role removed successfully", response.getBody().get("message"));
+        verify(usuarioService).removeRolFromUser(1L, 2L);
     }
 
     @Test
-    void getAllRoles_returnsRoles() throws Exception {
-        Rol rol1 = new Rol();
-        rol1.setId(1L);
-        rol1.setNombre("ADMIN");
+    void testRemoveRole_Exception() {
+        // Arrange
+        doThrow(new RuntimeException("Service error")).when(usuarioService).removeRolFromUser(1L, 2L);
 
-        Rol rol2 = new Rol();
-        rol2.setId(2L);
-        rol2.setNombre("USER");
+        // Act
+        ResponseEntity<Map<String, Object>> response = adminController.removeRole(1L, 2L);
 
-        when(rolRepository.findAll()).thenReturn(List.of(rol1, rol2));
+        // Assert
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("Service error", response.getBody().get("error"));
+        verify(usuarioService).removeRolFromUser(1L, 2L);
+    }
 
-        mockMvc.perform(get("/api/admin/roles"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].nombre", is("ADMIN")))
-                .andExpect(jsonPath("$[1].nombre", is("USER")));
+    @Test
+    void testGetAllRoles_Success() {
+        // Arrange
+        List<Rol> roles = Arrays.asList(testRol);
+        when(rolRepository.findAll()).thenReturn(roles);
+
+        // Act
+        ResponseEntity<List<Rol>> response = adminController.getAllRoles();
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(roles, response.getBody());
+        verify(rolRepository).findAll();
+    }
+
+    @Test
+    void testGetAllRoles_EmptyList() {
+        // Arrange
+        when(rolRepository.findAll()).thenReturn(Arrays.asList());
+
+        // Act
+        ResponseEntity<List<Rol>> response = adminController.getAllRoles();
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isEmpty());
+        verify(rolRepository).findAll();
+    }
+
+    @Test
+    void testGetUserById_ZeroId() {
+        // Arrange
+        when(usuarioService.findByCorreo("0")).thenReturn(null);
+
+        // Act
+        ResponseEntity<UserDTO> response = adminController.getUserById(0L);
+
+        // Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(usuarioService).findByCorreo("0");
+    }
+
+    @Test
+    void testGetUserById_NegativeId() {
+        // Arrange
+        when(usuarioService.findByCorreo("-1")).thenReturn(null);
+
+        // Act
+        ResponseEntity<UserDTO> response = adminController.getUserById(-1L);
+
+        // Assert
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        verify(usuarioService).findByCorreo("-1");
+    }
+
+    @Test
+    void testFilterUsers_WithEmptyParameters() {
+        // Arrange
+        when(usuarioService.findUsersByFilters("", null, null, "")).thenReturn(testUserList);
+
+        // Act
+        ResponseEntity<List<UserDTO>> response = adminController.filterUsers("", null, null, "");
+
+        // Assert
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(testUserList, response.getBody());
+        verify(usuarioService).findUsersByFilters("", null, null, "");
     }
 }
-*/
