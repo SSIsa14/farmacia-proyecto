@@ -1,3 +1,4 @@
+ALTER SESSION SET CONTAINER = XEPDB1;
 ALTER SESSION SET CURRENT_SCHEMA = PHARMACY_PROD;
 
 ---------------------------------------------------------------------
