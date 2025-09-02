@@ -1,20 +1,29 @@
 version: "3.8"
 
+volumes:
+  oracle-data:
+
+networks:
+  pharmacy-network:
+    external: true
+
 services:
-  oracle-db-dev:
+  oracle-db:
     image: gvenzl/oracle-xe:latest
-    container_name: oracle-xe-dev-pharmacy
+    container_name: oracle-xe-pharmacy
     environment:
       - ORACLE_PASSWORD=LocalOraclePass2
     ports:
-      - "1523:1521"
+      - "1521:1521"
     volumes:
-      - ./oracle-data-dev:/opt/oracle/oradata
+      - oracle-data:/opt/oracle/oradata
       - ./db-scripts:/docker-entrypoint-initdb.d
     networks:
       - pharmacy-network
 
+  # Backend DEV
   backend-dev:
+    profiles: ["dev"]
     build:
       context: ./pharmacy
       dockerfile: Dockerfile
@@ -22,14 +31,16 @@ services:
     ports:
       - "8082:8080"
     depends_on:
-      - oracle-db-dev
-    restart: always
-    networks:
-      - pharmacy-network
+      - oracle-db
     environment:
       SPRING_PROFILES_ACTIVE: dev
-
+    networks:
+      - pharmacy-network
+    restart: always
+ 
+  # Frontend DEV
   frontend-dev:
+    profiles: ["dev"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -42,21 +53,11 @@ services:
       - backend-dev
     networks:
       - pharmacy-network
+    restart: always
 
-  oracle-db-qa:
-    image: gvenzl/oracle-xe:latest
-    container_name: oracle-xe-qa-pharmacy
-    environment:
-      - ORACLE_PASSWORD=LocalOraclePass2
-    ports:
-      - "1524:1521"
-    volumes:
-      - ./oracle-data-qa:/opt/oracle/oradata
-      - ./db-scripts:/docker-entrypoint-initdb.d
-    networks:
-      - pharmacy-network
-
+  # Backend QA
   backend-qa:
+    profiles: ["qa"]
     build:
       context: ./pharmacy
       dockerfile: Dockerfile
@@ -64,14 +65,16 @@ services:
     ports:
       - "8083:8080"
     depends_on:
-      - oracle-db-qa
-    restart: always
-    networks:
-      - pharmacy-network
+      - oracle-db
     environment:
       SPRING_PROFILES_ACTIVE: qa
+    networks:
+      - pharmacy-network
+    restart: always
 
+  # Frontend QA
   frontend-qa:
+    profiles: ["qa"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -84,21 +87,11 @@ services:
       - backend-qa
     networks:
       - pharmacy-network
+    restart: always
 
-  oracle-db-prod:
-    image: gvenzl/oracle-xe:latest
-    container_name: oracle-xe-prod-pharmacy
-    environment:
-      - ORACLE_PASSWORD=LocalOraclePass2
-    ports:
-      - "1525:1521"
-    volumes:
-      - ./oracle-data-prod:/opt/oracle/oradata
-      - ./db-scripts:/docker-entrypoint-initdb.d
-    networks:
-      - pharmacy-network
-
+  # Backend PROD
   backend-prod:
+    profiles: ["prod"]
     build:
       context: ./pharmacy
       dockerfile: Dockerfile
@@ -106,14 +99,16 @@ services:
     ports:
       - "8085:8080"
     depends_on:
-      - oracle-db-prod
-    restart: always
-    networks:
-      - pharmacy-network
+      - oracle-db
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    networks:
+      - pharmacy-network
+    restart: always
 
+  # Frontend PROD
   frontend-prod:
+    profiles: ["prod"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -126,7 +121,4 @@ services:
       - backend-prod
     networks:
       - pharmacy-network
-
-networks:
-  pharmacy-network:
-    external: true
+    restart: always
