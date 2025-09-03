@@ -1,4 +1,4 @@
-def stageStatus = [:]  // etapa -> estado
+def stageStatus = [:]
 def failedStage = ""
 def allStages = ['Notify Build Start','Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis', 'Deploy']
 
@@ -10,7 +10,6 @@ pipeline {
     }
 
     stages {
-
         stage('Notify Build Start') {
             steps {
                 script {
@@ -157,15 +156,14 @@ pipeline {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
                     def profile = ''
-
                     if (branch == 'main') profile = 'prod'
                     else if (branch == 'development') profile = 'dev'
                     else if (branch == 'qa') profile = 'qa'
                     else error "No hay configuración de despliegue para la rama '${branch}'"
 
                     echo "=== Deploy con perfil: ${profile} ==="
-                    sh "docker compose --profile ${profile} down || true"
-                    sh "docker compose --profile ${profile} up -d --build"
+                    sh "docker compose -f docker-compose.comp.yml --profile ${profile} down || true"
+                    sh "docker compose -f docker-compose.comp.yml --profile ${profile} up -d --build"
                 }
             }
             post {
@@ -179,50 +177,77 @@ pipeline {
     post {
         failure {
             script {
-                // Completar con NOT_EXECUTED
-                allStages.each { stageName ->
-                    if (!stageStatus.containsKey(stageName)) {
-                        stageStatus[stageName] = 'NOT_EXECUTED'
-                    }
-                }
+                allStages.each { stageName -> if (!stageStatus.containsKey(stageName)) stageStatus[stageName] = 'NOT_EXECUTED' }
 
-                // Construir reporte de texto plano con colores como etiqueta
                 def reportStages = stageStatus.collect { stageName, status ->
-                    def color = status == 'FAILURE' ? '[FAIL]' : (status == 'SUCCESS' ? '[OK]' : '[SKIPPED]')
-                    return "${stageName}: ${color}"
-                }.join("\n")
+                    def color = status == 'FAILURE' ? 'red' : (status == 'SUCCESS' ? 'green' : 'gray')
+                    return "<li><b>${stageName}:</b> <span style='color:${color}'>${status}</span></li>"
+                }.join("")
 
                 def fecha = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone('UTC'))
-
-                // Notificar GitHub
                 def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
                 githubNotify context: contextName, status: 'FAILURE', description: "Falló en ${failedStage}", targetUrl: env.BUILD_URL
 
-                // Enviar correo
                 mail(
                     to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
                     subject: "TEST",
                     body: """
-Reporte de Fallo - Jenkins Pipeline
-
-Fecha: ${fecha} UTC
-Job: ${env.JOB_NAME}
-Build #: ${env.BUILD_NUMBER}
-Rama: ${env.BRANCH_NAME}
-
-El pipeline falló en la etapa: ${failedStage}
-
-Estado de las etapas:
-${reportStages}
-"""
+<html>
+<body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
+<div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);">
+<h2 style="color:red;text-align:center;">Reporte de Fallo - Jenkins Pipeline</h2>
+<p><b>Fecha:</b> ${fecha} UTC</p>
+<p><b>Job:</b> ${env.JOB_NAME}</p>
+<p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+<p><b>Rama:</b> ${env.BRANCH_NAME}</p>
+<hr style="border:none;border-top:1px solid #ccc;">
+<p>El pipeline falló en la etapa de <b>${failedStage}</b>.</p>
+<hr style="border:none;border-top:1px solid #ccc;">
+<h3>Estado de las etapas:</h3>
+<ul style="list-style:none;padding-left:0;">${reportStages}</ul>
+</div>
+</body>
+</html>
+""",
+                    mimeType: 'text/html'
                 )
             }
         }
 
         success {
             script {
+                allStages.each { stageName -> if (!stageStatus.containsKey(stageName)) stageStatus[stageName] = 'NOT_EXECUTED' }
+
+                def reportStages = stageStatus.collect { stageName, status ->
+                    def color = status == 'SUCCESS' ? 'green' : 'gray'
+                    return "<li><b>${stageName}:</b> <span style='color:${color}'>${status}</span></li>"
+                }.join("")
+
+                def fecha = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone('UTC'))
                 def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
                 githubNotify context: contextName, status: 'SUCCESS', description: "Pipeline OK", targetUrl: env.BUILD_URL
+
+                mail(
+                    to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
+                    subject: " Pipeline Ejecutado Correctamente",
+                    body: """
+<html>
+<body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
+<div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);">
+<h2 style="color:green;text-align:center;">Pipeline Ejecutado Correctamente</h2>
+<p><b>Fecha:</b> ${fecha} UTC</p>
+<p><b>Job:</b> ${env.JOB_NAME}</p>
+<p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+<p><b>Rama:</b> ${env.BRANCH_NAME}</p>
+<hr style="border:none;border-top:1px solid #ccc;">
+<h3>Estado de las etapas:</h3>
+<ul style="list-style:none;padding-left:0;">${reportStages}</ul>
+</div>
+</body>
+</html>
+""",
+                    mimeType: 'text/html'
+                )
             }
         }
     }
