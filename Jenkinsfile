@@ -1,6 +1,6 @@
 def stageStatus = [:]
 def failedStage = ""
-def allStages = ['Notify Build Start','Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'SonarQube Frontend Analysis', 'Deploy']
+def allStages = ['Notify Build Start','Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'Build Frontend', 'Test Frontend', 'SonarQube Frontend Analysis', 'Deploy']
 
 pipeline {
     agent any
@@ -16,6 +16,11 @@ pipeline {
                     def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
                     githubNotify context: contextName, status: 'PENDING', description: 'Pipeline iniciado'
                 }
+            }
+            post {
+                success { script { stageStatus['Notify Build Start'] = 'SUCCESS' } }
+                failure { script { stageStatus['Notify Build Start'] = 'FAILURE'; failedStage = "Notify Build Start" } }
+                aborted { script { stageStatus['Notify Build Start'] = 'NOT_EXECUTED' } }
             }
         }
 
@@ -109,6 +114,26 @@ pipeline {
                 aborted { script { stageStatus['Build Frontend'] = 'NOT_EXECUTED' } }
             }
         }
+
+
+        stage('Test Frontend') {
+        when { expression { fileExists('frontend/package.json') } }
+        steps {
+            echo "==== [Test Frontend] Iniciando ===="
+            dir('frontend') {
+                sh 'npm install'
+                sh 'ng test --watch=false --code-coverage'
+            }
+            echo "==== [Test Frontend] Finalizado ===="
+        }
+        post {
+            success { script { stageStatus['Test Frontend'] = 'SUCCESS' } }
+            failure { script { stageStatus['Test Frontend'] = 'FAILURE'; failedStage = "Test Frontend" } }
+            aborted { script { stageStatus['Test Frontend'] = 'NOT_EXECUTED' } }
+        }
+    }
+
+
 
         stage('SonarQube Frontend Analysis') {
             when { expression { fileExists('frontend/package.json') } }
