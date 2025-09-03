@@ -187,8 +187,8 @@ pipeline {
                     else error "No hay configuración de despliegue para la rama '${branch}'"
 
                     echo "=== Deploy con perfil: ${profile} ==="
-                    sh "docker compose -f docker-compose.comp.yml --profile ${profile} down || true"
-                    sh "docker compose -f docker-compose.comp.yml --profile ${profile} up -d --build"
+                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} down || true"
+                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up -d --build"
                 }
             }
             post {
