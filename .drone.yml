@@ -35,7 +35,7 @@ steps:
     environment:
       SONAR_HOST_URL: http://sonarqube:9000
       SONAR_TOKEN:
-        from_secret: sonar_token_backend_${DRONE_BRANCH}
+        from_secret: sonarqube-backend-${DRONE_BRANCH}
     when:
       branch:
         include: [ main, development, qa ]
@@ -75,7 +75,7 @@ steps:
     environment:
       SONAR_HOST_URL: http://sonarqube:9000
       SONAR_TOKEN:
-        from_secret: sonar_token_frontend_${DRONE_BRANCH}
+        from_secret: sonarqube-frontend-${DRONE_BRANCH}
     when:
       branch:
         include: [ main, development, qa ]
