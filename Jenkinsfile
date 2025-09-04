@@ -44,6 +44,7 @@ pipeline {
             }
         }
 
+        // ===== Backend =====
         stage('Build Backend') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
@@ -86,21 +87,19 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-                    withSonarQubeEnv('SonarQubeServer') { 
-                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-                            dir('pharmacy') {
-                                sh """
-                                    mvn clean verify sonar:sonar \
-                                      -Dsonar.projectKey=${config.projectKey} \
-                                      -Dsonar.host.url=${SONAR_HOST_URL} \
-                                      -Dsonar.login=${SONAR_TOKEN} \
-                                      -B
-                                """
-                            }
+                    withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+                        dir('pharmacy') {
+                            sh """
+                                mvn clean verify sonar:sonar \
+                                  -Dsonar.projectKey=${config.projectKey} \
+                                  -Dsonar.host.url=${SONAR_HOST_URL} \
+                                  -Dsonar.login=${SONAR_TOKEN} \
+                                  -B
+                            """
                         }
                     }
 
-                    // Guardar el taskId generado en una variable de entorno
+                    // Guardar el ceTaskId generado
                     env.SONARQUBE_TASK_ID_BACKEND = sh(
                         script: "cat pharmacy/.scannerwork/report-task.txt | grep 'ceTaskId' | cut -d '=' -f2",
                         returnStdout: true
@@ -122,8 +121,20 @@ pipeline {
                 echo "==== [Quality Gate Backend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        def qg = waitForQualityGate(sonarTaskId: env.SONARQUBE_TASK_ID_BACKEND, abortPipeline: true)
-                        if (qg.status != 'OK') error "Quality Gate Backend FALLÓ: ${qg.status}"
+                        def ceTaskId = env.SONARQUBE_TASK_ID_BACKEND
+                        def qgStatus = null
+                        retry(10) {
+                            sleep 10
+                            def response = sh(
+                                script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?analysisId=${ceTaskId}" """,
+                                returnStdout: true
+                            ).trim()
+                            def json = readJSON text: response
+                            qgStatus = json.projectStatus.status
+                            echo "Estado Quality Gate Backend: ${qgStatus}"
+                            if (qgStatus == 'OK') return
+                            if (qgStatus == 'ERROR') error "Quality Gate Backend FALLÓ"
+                        }
                     }
                 }
                 echo "==== [Quality Gate Backend] Finalizado ===="
@@ -135,6 +146,7 @@ pipeline {
             }
         }
 
+        // ===== Frontend =====
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
             steps {
@@ -180,24 +192,22 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-                    withSonarQubeEnv('SonarQubeServer') { 
-                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-                            dir('frontend') {
-                                sh """
-                                    npx sonar-scanner \
-                                      -Dsonar.projectKey=${config.projectKey} \
-                                      -Dsonar.sources=. \
-                                      -Dsonar.host.url=${SONAR_HOST_URL} \
-                                      -Dsonar.login=${SONAR_TOKEN} \
-                                      -Dsonar.language=ts \
-                                      -Dsonar.sourceEncoding=UTF-8 \
-                                      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-                                """
-                            }
+                    withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+                        dir('frontend') {
+                            sh """
+                                npx sonar-scanner \
+                                  -Dsonar.projectKey=${config.projectKey} \
+                                  -Dsonar.sources=. \
+                                  -Dsonar.host.url=${SONAR_HOST_URL} \
+                                  -Dsonar.login=${SONAR_TOKEN} \
+                                  -Dsonar.language=ts \
+                                  -Dsonar.sourceEncoding=UTF-8 \
+                                  -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                            """
                         }
                     }
 
-                    // Guardar el taskId del frontend
+                    // Guardar el ceTaskId generado
                     env.SONARQUBE_TASK_ID_FRONTEND = sh(
                         script: "cat frontend/.scannerwork/report-task.txt | grep 'ceTaskId' | cut -d '=' -f2",
                         returnStdout: true
@@ -219,8 +229,20 @@ pipeline {
                 echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        def qg = waitForQualityGate(sonarTaskId: env.SONARQUBE_TASK_ID_FRONTEND, abortPipeline: true)
-                        if (qg.status != 'OK') error "Quality Gate Frontend FALLÓ: ${qg.status}"
+                        def ceTaskId = env.SONARQUBE_TASK_ID_FRONTEND
+                        def qgStatus = null
+                        retry(10) {
+                            sleep 10
+                            def response = sh(
+                                script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?analysisId=${ceTaskId}" """,
+                                returnStdout: true
+                            ).trim()
+                            def json = readJSON text: response
+                            qgStatus = json.projectStatus.status
+                            echo "Estado Quality Gate Frontend: ${qgStatus}"
+                            if (qgStatus == 'OK') return
+                            if (qgStatus == 'ERROR') error "Quality Gate Frontend FALLÓ"
+                        }
                     }
                 }
                 echo "==== [Quality Gate Frontend] Finalizado ===="
@@ -232,16 +254,13 @@ pipeline {
             }
         }
 
+        // ===== Deploy =====
         stage('Deploy') {
             when { expression { return !env.CHANGE_ID } }
             steps {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
-                    def profile = ''
-                    if (branch == 'main') profile = 'prod'
-                    else if (branch == 'development') profile = 'dev'
-                    else if (branch == 'qa') profile = 'qa'
-                    else error "No hay configuración de despliegue para la rama '${branch}'"
+                    def profile = branch == 'main' ? 'prod' : branch == 'development' ? 'dev' : branch == 'qa' ? 'qa' : error("No hay configuración de despliegue para la rama '${branch}'")
 
                     echo "=== Deploy con perfil: ${profile} ==="
                     sh "docker-compose -f docker-compose.comp.yml --profile ${profile} down || true"
@@ -256,6 +275,7 @@ pipeline {
         }
     }
 
+    // ===== Post Actions =====
     post {
         failure {
             script {
