@@ -80,9 +80,9 @@ pipeline {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
                     def sonarConfig = [
-                        'main':        ['projectKey': 'FP:Backend_Prod',        'projectName': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
-                        'development': ['projectKey': 'FP:Backend_Development','projectName': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
-                        'qa':          ['projectKey': 'FP:Backend_Qa',         'projectName': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
+                        'main':        ['projectKey': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
+                        'development': ['projectKey': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
+                        'qa':          ['projectKey': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
                     ]
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
@@ -91,8 +91,9 @@ pipeline {
                         withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                             dir('pharmacy') {
                                 sh """
-                                    mvn -clean verify sonar:sonar \
+                                    mvn clean verify sonar:sonar \
                                       -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.projectName="${config.projectName}" \
                                       -Dsonar.host.url=${SONAR_HOST_URL} \
                                       -Dsonar.login=${SONAR_TOKEN} \
                                       -B
@@ -162,6 +163,7 @@ pipeline {
                                 sh """
                                     npx sonar-scanner \
                                       -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.projectName="${config.projectName}" \
                                       -Dsonar.sources=. \
                                       -Dsonar.host.url=${SONAR_HOST_URL} \
                                       -Dsonar.login=${SONAR_TOKEN} \
