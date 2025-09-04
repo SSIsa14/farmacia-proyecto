@@ -45,8 +45,8 @@ steps:
     commands:
       - cd pharmacy || cd backend
       - mvn sonar:sonar \
-          -Dsonar.projectKey=FP:Backend_${DRONE_BRANCH^} \
-          -Dsonar.projectName=FP:Backend_${DRONE_BRANCH^} \
+          -Dsonar.projectKey=FP_Backend_${DRONE_BRANCH} \
+          -Dsonar.projectName=FP_Backend_${DRONE_BRANCH} \
           -Dsonar.host.url=$SONAR_HOST_URL \
           -Dsonar.login=$SONAR_TOKEN
 
@@ -83,23 +83,10 @@ steps:
         - frontend/package.json
     commands:
       - cd frontend
-      - npx sonar-scanner \
-          -Dsonar.projectKey=FP:Frontend_${DRONE_BRANCH^} \
-          -Dsonar.projectName=FP:Frontend_${DRONE_BRANCH^} \
+      - sonar-scanner \
+          -Dsonar.projectKey=FP_Frontend_${DRONE_BRANCH} \
+          -Dsonar.projectName=FP_Frontend_${DRONE_BRANCH} \
           -Dsonar.sources=. \
           -Dsonar.host.url=$SONAR_HOST_URL \
           -Dsonar.login=$SONAR_TOKEN \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-
-  # ===== Deploy =====
-  - name: deploy
-    image: docker/compose:1.29.2
-    when:
-      branch:
-        include: [ main, development, qa ]
-      event:
-        exclude: [ pull_request ]
-    commands:
-      - echo "Deployando en ${DRONE_BRANCH}"
-      - docker-compose -f docker-compose.comp.yml --profile ${DRONE_BRANCH} down || true
-      - docker-compose -f docker-compose.comp.yml --profile ${DRONE_BRANCH} up -d --build
