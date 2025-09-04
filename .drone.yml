@@ -1,0 +1,105 @@
+kind: pipeline
+type: docker
+name: farmacia-ci
+
+steps:
+  - name: checkout
+    image: alpine/git
+    commands:
+      - git fetch --all
+      - git reset --hard origin/${DRONE_BRANCH}
+
+  # ===== Backend =====
+  - name: build-backend
+    image: maven:3.9.9-eclipse-temurin-17
+    when:
+      exists:
+        - pharmacy/pom.xml
+        - backend/pom.xml
+    commands:
+      - cd pharmacy || cd backend
+      - mvn clean install -B
+
+  - name: test-backend
+    image: maven:3.9.9-eclipse-temurin-17
+    when:
+      exists:
+        - pharmacy/pom.xml
+        - backend/pom.xml
+    commands:
+      - cd pharmacy || cd backend
+      - mvn test -B
+
+  - name: sonar-backend
+    image: maven:3.9.9-eclipse-temurin-17
+    environment:
+      SONAR_HOST_URL: http://sonarqube:9000
+      SONAR_TOKEN:
+        from_secret: sonar_token_backend_${DRONE_BRANCH}
+    when:
+      branch:
+        include: [ main, development, qa ]
+      exists:
+        - pharmacy/pom.xml
+        - backend/pom.xml
+    commands:
+      - cd pharmacy || cd backend
+      - mvn sonar:sonar \
+          -Dsonar.projectKey=FP:Backend_${DRONE_BRANCH^} \
+          -Dsonar.projectName=FP:Backend_${DRONE_BRANCH^} \
+          -Dsonar.host.url=$SONAR_HOST_URL \
+          -Dsonar.login=$SONAR_TOKEN
+
+  # ===== Frontend =====
+  - name: build-frontend
+    image: node:18
+    when:
+      exists:
+        - frontend/package.json
+    commands:
+      - cd frontend
+      - npm install
+
+  - name: test-frontend
+    image: node:18
+    when:
+      exists:
+        - frontend/package.json
+    commands:
+      - cd frontend
+      - npm install
+      - npm test -- --watch=false --code-coverage
+
+  - name: sonar-frontend
+    image: sonarsource/sonar-scanner-cli:latest
+    environment:
+      SONAR_HOST_URL: http://sonarqube:9000
+      SONAR_TOKEN:
+        from_secret: sonar_token_frontend_${DRONE_BRANCH}
+    when:
+      branch:
+        include: [ main, development, qa ]
+      exists:
+        - frontend/package.json
+    commands:
+      - cd frontend
+      - npx sonar-scanner \
+          -Dsonar.projectKey=FP:Frontend_${DRONE_BRANCH^} \
+          -Dsonar.projectName=FP:Frontend_${DRONE_BRANCH^} \
+          -Dsonar.sources=. \
+          -Dsonar.host.url=$SONAR_HOST_URL \
+          -Dsonar.login=$SONAR_TOKEN \
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+  # ===== Deploy =====
+  - name: deploy
+    image: docker/compose:1.29.2
+    when:
+      branch:
+        include: [ main, development, qa ]
+      event:
+        exclude: [ pull_request ]
+    commands:
+      - echo "Deployando en ${DRONE_BRANCH}"
+      - docker-compose -f docker-compose.comp.yml --profile ${DRONE_BRANCH} down || true
+      - docker-compose -f docker-compose.comp.yml --profile ${DRONE_BRANCH} up -d --build
