@@ -80,9 +80,9 @@ pipeline {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
                     def sonarConfig = [
-                        'main':        ['projectKey': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
-                        'development': ['projectKey': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
-                        'qa':          ['projectKey': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
+                        'main':        ['projectKey': 'FP:Backend_Prod',        'projectName': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
+                        'development': ['projectKey': 'FP:Backend_Development','projectName': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
+                        'qa':          ['projectKey': 'FP:Backend_Qa',         'projectName': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
                     ]
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
