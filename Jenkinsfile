@@ -87,28 +87,21 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-                    def analysisTaskId = ""
-
                     withSonarQubeEnv('SonarQubeServer') { 
                         withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                             dir('pharmacy') {
-                                analysisTaskId = sh(
-                                    script: """
-                                        mvn clean verify sonar:sonar \
-                                          -Dsonar.projectKey=${config.projectKey} \
-                                          -Dsonar.projectName="${config.projectName}" \
-                                          -Dsonar.host.url=${SONAR_HOST_URL} \
-                                          -Dsonar.login=${SONAR_TOKEN} \
-                                          -B
-                                    """,
-                                    returnStdout: true
-                                ).trim()
+                                sh """
+                                    mvn clean verify sonar:sonar \
+                                      -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.projectName="${config.projectName}" \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN} \
+                                      -B
+                                """
                             }
                         }
                     }
-                    // Guardamos el taskId en variable de entorno para el siguiente stage
-                    env.SONAR_TASK_ID = analysisTaskId
-                }
+                } 
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
             post {
@@ -123,11 +116,7 @@ pipeline {
             steps {
                 echo "==== [Quality Gate Backend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
-                    script {
-                        // Esperamos un poco para que Sonar registre el análisis
-                        sleep 10
-                        waitForQualityGate abortPipeline: true, sonarTaskId: env.SONAR_TASK_ID
-                    }
+                    waitForQualityGate abortPipeline: true
                 }
                 echo "==== [Quality Gate Backend] Finalizado ===="
             }
@@ -138,7 +127,6 @@ pipeline {
             }
         }
 
-        // === Igual para Frontend ===
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
             steps {
@@ -185,29 +173,23 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-                    def analysisTaskId = ""
-
                     withSonarQubeEnv('SonarQubeServer') { 
                         withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                             dir('frontend') {
-                                analysisTaskId = sh(
-                                    script: """
-                                        npx sonar-scanner \
-                                          -Dsonar.projectKey=${config.projectKey} \
-                                          -Dsonar.projectName="${config.projectName}" \
-                                          -Dsonar.sources=. \
-                                          -Dsonar.host.url=${SONAR_HOST_URL} \
-                                          -Dsonar.login=${SONAR_TOKEN} \
-                                          -Dsonar.language=ts \
-                                          -Dsonar.sourceEncoding=UTF-8 \
-                                          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-                                    """,
-                                    returnStdout: true
-                                ).trim()
+                                sh """
+                                    npx sonar-scanner \
+                                      -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.projectName="${config.projectName}" \
+                                      -Dsonar.sources=. \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN} \
+                                      -Dsonar.language=ts \
+                                      -Dsonar.sourceEncoding=UTF-8 \
+                                      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                                """
                             }
                         }
                     }
-                    env.SONAR_FRONTEND_TASK_ID = analysisTaskId
                 }
                 echo "==== [SonarQube Frontend] Finalizado ===="
             }
@@ -223,10 +205,7 @@ pipeline {
             steps {
                 echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
-                    script {
-                        sleep 10
-                        waitForQualityGate abortPipeline: true, sonarTaskId: env.SONAR_FRONTEND_TASK_ID
-                    }
+                    waitForQualityGate abortPipeline: true
                 }
                 echo "==== [Quality Gate Frontend] Finalizado ===="
             }
@@ -275,7 +254,29 @@ pipeline {
                 def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
                 githubNotify context: contextName, status: 'FAILURE', description: "Falló en ${failedStage}", targetUrl: env.BUILD_URL
 
-                 mail( to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt', subject: "TEST FALLIDO", body: """ <html> <body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;"> <div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);"> <h2 style="color:red;text-align:center;">Reporte de Fallo - Jenkins Pipeline</h2> <p><b>Fecha:</b> ${fecha} UTC</p> <p><b>Job:</b> ${env.JOB_NAME}</p> <p><b>Build #:</b> ${env.BUILD_NUMBER}</p> <p><b>Rama:</b> ${env.BRANCH_NAME}</p> <hr style="border:none;border-top:1px solid #ccc;"> <p>El pipeline falló en la etapa de <b>${failedStage}</b>.</p> <hr style="border:none;border-top:1px solid #ccc;"> <h3>Estado de las etapas:</h3> <ul style="list-style:none;padding-left:0;">${reportStages}</ul> </div> </body> </html> """, mimeType: 'text/html' )
+                mail(
+                    to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
+                    subject: "TEST FALLIDO",
+                    body: """
+<html>
+<body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
+<div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);">
+<h2 style="color:red;text-align:center;">Reporte de Fallo - Jenkins Pipeline</h2>
+<p><b>Fecha:</b> ${fecha} UTC</p>
+<p><b>Job:</b> ${env.JOB_NAME}</p>
+<p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+<p><b>Rama:</b> ${env.BRANCH_NAME}</p>
+<hr style="border:none;border-top:1px solid #ccc;">
+<p>El pipeline falló en la etapa de <b>${failedStage}</b>.</p>
+<hr style="border:none;border-top:1px solid #ccc;">
+<h3>Estado de las etapas:</h3>
+<ul style="list-style:none;padding-left:0;">${reportStages}</ul>
+</div>
+</body>
+</html>
+""",
+                    mimeType: 'text/html'
+                )
             }
         }
 
@@ -292,7 +293,27 @@ pipeline {
                 def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
                 githubNotify context: contextName, status: 'SUCCESS', description: "Pipeline OK", targetUrl: env.BUILD_URL
 
-                mail( to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt', subject: "Pipeline Ejecutado Correctamente", body: """ <html> <body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;"> <div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);"> <h2 style="color:green;text-align:center;">Pipeline Ejecutado Correctamente</h2> <p><b>Fecha:</b> ${fecha} UTC</p> <p><b>Job:</b> ${env.JOB_NAME}</p> <p><b>Build #:</b> ${env.BUILD_NUMBER}</p> <p><b>Rama:</b> ${env.BRANCH_NAME}</p> <hr style="border:none;border-top:1px solid #ccc;"> <h3>Estado de las etapas:</h3> <ul style="list-style:none;padding-left:0;">${reportStages}</ul> </div> </body> </html> """, mimeType: 'text/html' )
+                mail(
+                    to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
+                    subject: "TEST EXITOSO",
+                    body: """
+<html>
+<body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
+<div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);">
+<h2 style="color:green;text-align:center;">Pipeline Ejecutado Correctamente</h2>
+<p><b>Fecha:</b> ${fecha} UTC</p>
+<p><b>Job:</b> ${env.JOB_NAME}</p>
+<p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
+<p><b>Rama:</b> ${env.BRANCH_NAME}</p>
+<hr style="border:none;border-top:1px solid #ccc;">
+<h3>Estado de las etapas:</h3>
+<ul style="list-style:none;padding-left:0;">${reportStages}</ul>
+</div>
+</body>
+</html>
+""",
+                    mimeType: 'text/html'
+                )
             }
         }
     }
