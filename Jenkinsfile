@@ -72,7 +72,6 @@ pipeline {
             }
         }
 
-        // ===== SonarQube Backend Analysis =====
         stage('SonarQube Backend Analysis') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
@@ -100,6 +99,13 @@ pipeline {
                             }
                         }
                     }
+
+                    // Guardar el taskId generado en una variable de entorno
+                    env.SONARQUBE_TASK_ID_BACKEND = sh(
+                        script: "cat pharmacy/.scannerwork/report-task.txt | grep 'ceTaskId' | cut -d '=' -f2",
+                        returnStdout: true
+                    ).trim()
+                    echo "Task ID Backend: ${env.SONARQUBE_TASK_ID_BACKEND}"
                 }
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
@@ -116,7 +122,7 @@ pipeline {
                 echo "==== [Quality Gate Backend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        def qg = waitForQualityGate(abortPipeline: true)
+                        def qg = waitForQualityGate(sonarTaskId: env.SONARQUBE_TASK_ID_BACKEND, abortPipeline: true)
                         if (qg.status != 'OK') error "Quality Gate Backend FALLÓ: ${qg.status}"
                     }
                 }
@@ -129,7 +135,6 @@ pipeline {
             }
         }
 
-        // ===== Frontend =====
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
             steps {
@@ -191,6 +196,13 @@ pipeline {
                             }
                         }
                     }
+
+                    // Guardar el taskId del frontend
+                    env.SONARQUBE_TASK_ID_FRONTEND = sh(
+                        script: "cat frontend/.scannerwork/report-task.txt | grep 'ceTaskId' | cut -d '=' -f2",
+                        returnStdout: true
+                    ).trim()
+                    echo "Task ID Frontend: ${env.SONARQUBE_TASK_ID_FRONTEND}"
                 }
                 echo "==== [SonarQube Frontend] Finalizado ===="
             }
@@ -207,7 +219,7 @@ pipeline {
                 echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        def qg = waitForQualityGate(abortPipeline: true)
+                        def qg = waitForQualityGate(sonarTaskId: env.SONARQUBE_TASK_ID_FRONTEND, abortPipeline: true)
                         if (qg.status != 'OK') error "Quality Gate Frontend FALLÓ: ${qg.status}"
                     }
                 }
