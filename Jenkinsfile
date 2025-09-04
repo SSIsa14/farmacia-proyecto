@@ -1,6 +1,13 @@
 def stageStatus = [:]
 def failedStage = ""
-def allStages = ['Notify Build Start','Checkout', 'Build Backend', 'Test Backend', 'SonarQube Backend Analysis', 'SonarQube Backend Quality Gate', 'Build Frontend', 'Test Frontend', 'SonarQube Frontend Analysis', 'SonarQube Backend Quality Gate', 'Deploy']
+def allStages = [
+    'Notify Build Start','Checkout', 
+    'Build Backend', 'Test Backend', 
+    'SonarQube Backend Analysis', 'SonarQube Backend Quality Gate', 
+    'Build Frontend', 'Test Frontend', 
+    'SonarQube Frontend Analysis', 'SonarQube Frontend Quality Gate',
+    'Deploy'
+]
 
 pipeline {
     agent any
@@ -101,7 +108,6 @@ pipeline {
             }
         }
 
-
         stage('SonarQube Backend Quality Gate') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
@@ -118,7 +124,6 @@ pipeline {
             }
         }
 
-
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
             steps {
@@ -133,25 +138,22 @@ pipeline {
             }
         }
 
-
         stage('Test Frontend') {
-        when { expression { fileExists('frontend/package.json') } }
-        steps {
-            echo "==== [Test Frontend] Iniciando ===="
-            dir('frontend') {
-                sh 'npm install'
-                sh 'ng test --watch=false --code-coverage'
+            when { expression { fileExists('frontend/package.json') } }
+            steps {
+                echo "==== [Test Frontend] Iniciando ===="
+                dir('frontend') {
+                    sh 'npm install'
+                    sh 'ng test --watch=false --code-coverage'
+                }
+                echo "==== [Test Frontend] Finalizado ===="
             }
-            echo "==== [Test Frontend] Finalizado ===="
+            post {
+                success { script { stageStatus['Test Frontend'] = 'SUCCESS' } }
+                failure { script { stageStatus['Test Frontend'] = 'FAILURE'; failedStage = "Test Frontend" } }
+                aborted { script { stageStatus['Test Frontend'] = 'NOT_EXECUTED' } }
+            }
         }
-        post {
-            success { script { stageStatus['Test Frontend'] = 'SUCCESS' } }
-            failure { script { stageStatus['Test Frontend'] = 'FAILURE'; failedStage = "Test Frontend" } }
-            aborted { script { stageStatus['Test Frontend'] = 'NOT_EXECUTED' } }
-        }
-    }
-
-
 
         stage('SonarQube Frontend Analysis') {
             when { expression { fileExists('frontend/package.json') } }
@@ -192,7 +194,6 @@ pipeline {
                 aborted { script { stageStatus['SonarQube Frontend Analysis'] = 'NOT_EXECUTED' } }
             }
         }
-
 
         stage('SonarQube Frontend Quality Gate') {
             when { expression { fileExists('frontend/package.json') } }
@@ -289,7 +290,7 @@ pipeline {
 
                 mail(
                     to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
-                    subject: " Pipeline Ejecutado Correctamente",
+                    subject: "Pipeline Ejecutado Correctamente",
                     body: """
 <html>
 <body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
