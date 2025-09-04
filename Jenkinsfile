@@ -89,22 +89,21 @@ pipeline {
 
                     withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                         dir('pharmacy') {
-                            sh """
+                            def mvnOutput = sh(script: """
                                 mvn clean verify sonar:sonar \
                                   -Dsonar.projectKey=${config.projectKey} \
                                   -Dsonar.host.url=${SONAR_HOST_URL} \
-                                  -Dsonar.login=${SONAR_TOKEN} \
-                                  -B
-                            """
+                                  -Dsonar.login=${SONAR_TOKEN} -B
+                            """, returnStdout: true).trim()
+                            def match = mvnOutput =~ /http:\\/\\/.*\\/api\\/ce\\/task\\?id=(\\S+)/
+                            if (match) {
+                                env.SONARQUBE_TASK_ID_BACKEND = match[0][1]
+                                echo "Task ID Backend: ${env.SONARQUBE_TASK_ID_BACKEND}"
+                            } else {
+                                error "No se pudo obtener el ceTaskId de Maven"
+                            }
                         }
                     }
-
-                    // Guardar el ceTaskId generado
-                    env.SONARQUBE_TASK_ID_BACKEND = sh(
-                        script: "cat pharmacy/.scannerwork/report-task.txt | grep 'ceTaskId' | cut -d '=' -f2",
-                        returnStdout: true
-                    ).trim()
-                    echo "Task ID Backend: ${env.SONARQUBE_TASK_ID_BACKEND}"
                 }
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
@@ -194,7 +193,7 @@ pipeline {
 
                     withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                         dir('frontend') {
-                            sh """
+                            def scannerOutput = sh(script: """
                                 npx sonar-scanner \
                                   -Dsonar.projectKey=${config.projectKey} \
                                   -Dsonar.sources=. \
@@ -203,16 +202,17 @@ pipeline {
                                   -Dsonar.language=ts \
                                   -Dsonar.sourceEncoding=UTF-8 \
                                   -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-                            """
+                            """, returnStdout: true).trim()
+
+                            def match = scannerOutput =~ /http:\\/\\/.*\\/api\\/ce\\/task\\?id=(\\S+)/
+                            if (match) {
+                                env.SONARQUBE_TASK_ID_FRONTEND = match[0][1]
+                                echo "Task ID Frontend: ${env.SONARQUBE_TASK_ID_FRONTEND}"
+                            } else {
+                                error "No se pudo obtener el ceTaskId de Frontend"
+                            }
                         }
                     }
-
-                    // Guardar el ceTaskId generado
-                    env.SONARQUBE_TASK_ID_FRONTEND = sh(
-                        script: "cat frontend/.scannerwork/report-task.txt | grep 'ceTaskId' | cut -d '=' -f2",
-                        returnStdout: true
-                    ).trim()
-                    echo "Task ID Frontend: ${env.SONARQUBE_TASK_ID_FRONTEND}"
                 }
                 echo "==== [SonarQube Frontend] Finalizado ===="
             }
@@ -275,7 +275,6 @@ pipeline {
         }
     }
 
-    // ===== Post Actions =====
     post {
         failure {
             script {
