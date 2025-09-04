@@ -100,7 +100,7 @@ pipeline {
                         }
                     }
                 }
-                }
+            } 
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
             post {
