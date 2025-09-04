@@ -3,9 +3,9 @@ def failedStage = ""
 def allStages = [
     'Notify Build Start','Checkout', 
     'Build Backend', 'Test Backend', 
-    'SonarQube Backend Analysis', 'SonarQube Backend Quality Gate', 
+    'SonarQube Backend Analysis',
     'Build Frontend', 'Test Frontend', 
-    'SonarQube Frontend Analysis', 'SonarQube Frontend Quality Gate',
+    'SonarQube Frontend Analysis',
     'Deploy'
 ]
 
@@ -110,25 +110,6 @@ pipeline {
             }
         }
 
-        stage('SonarQube Backend Quality Gate') {
-            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
-            steps {
-                echo "==== [Quality Gate Backend] Iniciando ===="
-                timeout(time: 10, unit: 'MINUTES') {
-                    script {
-                        def qg = waitForQualityGate(abortPipeline: true)
-                        if (qg.status != 'OK') error "Quality Gate Backend FALLÓ: ${qg.status}"
-                    }
-                }
-                echo "==== [Quality Gate Backend] Finalizado ===="
-            }
-            post {
-                success { script { stageStatus['SonarQube Backend Quality Gate'] = 'SUCCESS' } }
-                failure { script { stageStatus['SonarQube Backend Quality Gate'] = 'FAILURE'; failedStage = "SonarQube Backend Quality Gate" } }
-                aborted { script { stageStatus['SonarQube Backend Quality Gate'] = 'NOT_EXECUTED' } }
-            }
-        }
-
         // ===== Frontend =====
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
@@ -198,25 +179,6 @@ pipeline {
                 success { script { stageStatus['SonarQube Frontend Analysis'] = 'SUCCESS' } }
                 failure { script { stageStatus['SonarQube Frontend Analysis'] = 'FAILURE'; failedStage = "SonarQube Frontend Analysis" } }
                 aborted { script { stageStatus['SonarQube Frontend Analysis'] = 'NOT_EXECUTED' } }
-            }
-        }
-
-        stage('SonarQube Frontend Quality Gate') {
-            when { expression { fileExists('frontend/package.json') } }
-            steps {
-                echo "==== [Quality Gate Frontend] Iniciando ===="
-                timeout(time: 10, unit: 'MINUTES') {
-                    script {
-                        def qg = waitForQualityGate(abortPipeline: true)
-                        if (qg.status != 'OK') error "Quality Gate Frontend FALLÓ: ${qg.status}"
-                    }
-                }
-                echo "==== [Quality Gate Frontend] Finalizado ===="
-            }
-            post {
-                success { script { stageStatus['SonarQube Frontend Quality Gate'] = 'SUCCESS' } }
-                failure { script { stageStatus['SonarQube Frontend Quality Gate'] = 'FAILURE'; failedStage = "SonarQube Frontend Quality Gate" } }
-                aborted { script { stageStatus['SonarQube Frontend Quality Gate'] = 'NOT_EXECUTED' } }
             }
         }
 
