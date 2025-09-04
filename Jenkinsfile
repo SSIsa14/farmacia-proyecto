@@ -87,6 +87,7 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
+                    withSonarQubeEnv('SonarQubeServer') { 
                     withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                         dir('pharmacy') {
                             sh """
@@ -98,6 +99,7 @@ pipeline {
                             """
                         }
                     }
+                }
                 }
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
@@ -170,6 +172,7 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
+                    withSonarQubeEnv('SonarQubeServer') { 
                     withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                         dir('frontend') {
                             sh """
@@ -184,6 +187,8 @@ pipeline {
                                   -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                             """
                         }
+                    }
+
                     }
                 }
                 echo "==== [SonarQube Frontend] Finalizado ===="
