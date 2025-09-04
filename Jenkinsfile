@@ -80,9 +80,9 @@ pipeline {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
                     def sonarConfig = [
-                        'main':        ['projectKey': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
-                        'development': ['projectKey': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
-                        'qa':          ['projectKey': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
+                        'main':        ['projectKey': 'FP:Backend_Prod',        'projectName': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
+                        'development': ['projectKey': 'FP:Backend_Development','projectName': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
+                        'qa':          ['projectKey': 'FP:Backend_Qa',         'projectName': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
                     ]
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
@@ -91,7 +91,7 @@ pipeline {
                         withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                             dir('pharmacy') {
                                 sh """
-                                    mvn clean verify sonar:sonar \
+                                    mvn -clean verify sonar:sonar \
                                       -Dsonar.projectKey=${config.projectKey} \
                                       -Dsonar.host.url=${SONAR_HOST_URL} \
                                       -Dsonar.login=${SONAR_TOKEN} \
@@ -149,9 +149,9 @@ pipeline {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
                     def sonarConfig = [
-                        'main':        ['projectKey': 'FP:Frontend_Prod',        'tokenId': 'sonarqube-frontend-main'],
-                        'development': ['projectKey': 'FP:Frontend_Development','tokenId': 'sonarqube-frontend-development'],
-                        'qa':          ['projectKey': 'FP:Frontend_Qa',         'tokenId': 'sonarqube-frontend-qa']
+                        'main':        ['projectKey': 'FP:Frontend_Prod',        'projectName': 'FP:Frontend_Prod',        'tokenId': 'sonarqube-frontend-main'],
+                        'development': ['projectKey': 'FP:Frontend_Development','projectName': 'FP:Frontend_Development','tokenId': 'sonarqube-frontend-development'],
+                        'qa':          ['projectKey': 'FP:Frontend_Qa',         'projectName': 'FP:Frontend_Qa',         'tokenId': 'sonarqube-frontend-qa']
                     ]
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
@@ -195,7 +195,7 @@ pipeline {
 
                     echo "=== Deploy con perfil: ${profile} ==="
                     sh "docker-compose -f docker-compose.comp.yml --profile ${profile} down || true"
-                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up -d --build"
+                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up --build"
                 }
             }
             post {
