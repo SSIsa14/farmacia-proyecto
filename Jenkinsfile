@@ -88,19 +88,20 @@ pipeline {
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
                     withSonarQubeEnv('SonarQubeServer') { 
-                    withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-                        dir('pharmacy') {
-                            sh """
-                                mvn clean verify sonar:sonar \
-                                  -Dsonar.projectKey=${config.projectKey} \
-                                  -Dsonar.projectName="${config.projectName}" \
-                                  -Dsonar.host.url=${SONAR_HOST_URL} \
-                                  -Dsonar.login=${SONAR_TOKEN}
-                            """
+                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+                            dir('pharmacy') {
+                                sh """
+                                    mvn clean verify sonar:sonar \
+                                      -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.projectName="${config.projectName}" \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN} \
+                                      -B
+                                """
+                            }
                         }
                     }
-                }
-            } 
+                } 
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
             post {
@@ -173,22 +174,21 @@ pipeline {
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
                     withSonarQubeEnv('SonarQubeServer') { 
-                    withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-                        dir('frontend') {
-                            sh """
-                                npx sonar-scanner \
-                                  -Dsonar.projectKey=${config.projectKey} \
-                                  -Dsonar.projectName="${config.projectName}" \
-                                  -Dsonar.sources=. \
-                                  -Dsonar.host.url=${SONAR_HOST_URL} \
-                                  -Dsonar.login=${SONAR_TOKEN} \
-                                  -Dsonar.language=ts \
-                                  -Dsonar.sourceEncoding=UTF-8 \
-                                  -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-                            """
+                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+                            dir('frontend') {
+                                sh """
+                                    npx sonar-scanner \
+                                      -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.projectName="${config.projectName}" \
+                                      -Dsonar.sources=. \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN} \
+                                      -Dsonar.language=ts \
+                                      -Dsonar.sourceEncoding=UTF-8 \
+                                      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                                """
+                            }
                         }
-                    }
-
                     }
                 }
                 echo "==== [SonarQube Frontend] Finalizado ===="
@@ -256,7 +256,7 @@ pipeline {
 
                 mail(
                     to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
-                    subject: "TEST",
+                    subject: "Pipeline Fallido - Jenkins",
                     body: """
 <html>
 <body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
