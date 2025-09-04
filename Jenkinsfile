@@ -72,6 +72,7 @@ pipeline {
             }
         }
 
+        // ===== SonarQube Backend Analysis =====
         stage('SonarQube Backend Analysis') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
@@ -79,11 +80,10 @@ pipeline {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
                     def sonarConfig = [
-                        'main':        ['projectKey': 'FP:Backend_Prod',        'projectName': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
-                        'development': ['projectKey': 'FP:Backend_Development','projectName': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
-                        'qa':          ['projectKey': 'FP:Backend_Qa',         'projectName': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
+                        'main':        ['projectKey': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
+                        'development': ['projectKey': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
+                        'qa':          ['projectKey': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
                     ]
-                    
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
@@ -93,7 +93,6 @@ pipeline {
                                 sh """
                                     mvn clean verify sonar:sonar \
                                       -Dsonar.projectKey=${config.projectKey} \
-                                      -Dsonar.projectName="${config.projectName}" \
                                       -Dsonar.host.url=${SONAR_HOST_URL} \
                                       -Dsonar.login=${SONAR_TOKEN} \
                                       -B
@@ -101,7 +100,7 @@ pipeline {
                             }
                         }
                     }
-                } 
+                }
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
             post {
@@ -116,7 +115,10 @@ pipeline {
             steps {
                 echo "==== [Quality Gate Backend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                    script {
+                        def qg = waitForQualityGate(abortPipeline: true)
+                        if (qg.status != 'OK') error "Quality Gate Backend FALLÓ: ${qg.status}"
+                    }
                 }
                 echo "==== [Quality Gate Backend] Finalizado ===="
             }
@@ -127,6 +129,7 @@ pipeline {
             }
         }
 
+        // ===== Frontend =====
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
             steps {
@@ -165,11 +168,10 @@ pipeline {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
                     def sonarConfig = [
-                        'main':        ['projectKey': 'FP:Frontend_Prod',        'projectName': 'FP:Frontend_Prod',        'tokenId': 'sonarqube-frontend-main'],
-                        'development': ['projectKey': 'FP:Frontend_Development','projectName': 'FP:Frontend_Development','tokenId': 'sonarqube-frontend-development'],
-                        'qa':          ['projectKey': 'FP:Frontend_Qa',         'projectName': 'FP:Frontend_Qa',         'tokenId': 'sonarqube-frontend-qa']
+                        'main':        ['projectKey': 'FP:Frontend_Prod',        'tokenId': 'sonarqube-frontend-main'],
+                        'development': ['projectKey': 'FP:Frontend_Development','tokenId': 'sonarqube-frontend-development'],
+                        'qa':          ['projectKey': 'FP:Frontend_Qa',         'tokenId': 'sonarqube-frontend-qa']
                     ]
-                    
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
@@ -179,7 +181,6 @@ pipeline {
                                 sh """
                                     npx sonar-scanner \
                                       -Dsonar.projectKey=${config.projectKey} \
-                                      -Dsonar.projectName="${config.projectName}" \
                                       -Dsonar.sources=. \
                                       -Dsonar.host.url=${SONAR_HOST_URL} \
                                       -Dsonar.login=${SONAR_TOKEN} \
@@ -205,7 +206,10 @@ pipeline {
             steps {
                 echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                    script {
+                        def qg = waitForQualityGate(abortPipeline: true)
+                        if (qg.status != 'OK') error "Quality Gate Frontend FALLÓ: ${qg.status}"
+                    }
                 }
                 echo "==== [Quality Gate Frontend] Finalizado ===="
             }
