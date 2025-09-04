@@ -197,7 +197,7 @@ pipeline {
 
                     echo "=== Deploy con perfil: ${profile} ==="
                     sh "docker-compose -f docker-compose.comp.yml --profile ${profile} down || true"
-                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up --build"
+                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up -d --build"
                 }
             }
             post {
