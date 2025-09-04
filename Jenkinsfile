@@ -44,7 +44,6 @@ pipeline {
             }
         }
 
-        // ===== Backend =====
         stage('Build Backend') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
@@ -73,6 +72,7 @@ pipeline {
             }
         }
 
+        // ===== SonarQube Backend Analysis =====
         stage('SonarQube Backend Analysis') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
@@ -87,20 +87,16 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-                    withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-                        dir('pharmacy') {
-                            def mvnOutput = sh(script: """
-                                mvn clean verify sonar:sonar \
-                                  -Dsonar.projectKey=${config.projectKey} \
-                                  -Dsonar.host.url=${SONAR_HOST_URL} \
-                                  -Dsonar.login=${SONAR_TOKEN} -B
-                            """, returnStdout: true).trim()
-                            def match = mvnOutput =~ /http:\\/\\/.*\\/api\\/ce\\/task\\?id=(\\S+)/
-                            if (match) {
-                                env.SONARQUBE_TASK_ID_BACKEND = match[0][1]
-                                echo "Task ID Backend: ${env.SONARQUBE_TASK_ID_BACKEND}"
-                            } else {
-                                error "No se pudo obtener el ceTaskId de Maven"
+                    withSonarQubeEnv('SonarQubeServer') { 
+                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+                            dir('pharmacy') {
+                                sh """
+                                    mvn clean verify sonar:sonar \
+                                      -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN} \
+                                      -B
+                                """
                             }
                         }
                     }
@@ -120,20 +116,8 @@ pipeline {
                 echo "==== [Quality Gate Backend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        def ceTaskId = env.SONARQUBE_TASK_ID_BACKEND
-                        def qgStatus = null
-                        retry(10) {
-                            sleep 10
-                            def response = sh(
-                                script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?analysisId=${ceTaskId}" """,
-                                returnStdout: true
-                            ).trim()
-                            def json = readJSON text: response
-                            qgStatus = json.projectStatus.status
-                            echo "Estado Quality Gate Backend: ${qgStatus}"
-                            if (qgStatus == 'OK') return
-                            if (qgStatus == 'ERROR') error "Quality Gate Backend FALLÓ"
-                        }
+                        def qg = waitForQualityGate(abortPipeline: true)
+                        if (qg.status != 'OK') error "Quality Gate Backend FALLÓ: ${qg.status}"
                     }
                 }
                 echo "==== [Quality Gate Backend] Finalizado ===="
@@ -191,25 +175,19 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-                    withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-                        dir('frontend') {
-                            def scannerOutput = sh(script: """
-                                npx sonar-scanner \
-                                  -Dsonar.projectKey=${config.projectKey} \
-                                  -Dsonar.sources=. \
-                                  -Dsonar.host.url=${SONAR_HOST_URL} \
-                                  -Dsonar.login=${SONAR_TOKEN} \
-                                  -Dsonar.language=ts \
-                                  -Dsonar.sourceEncoding=UTF-8 \
-                                  -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-                            """, returnStdout: true).trim()
-
-                            def match = scannerOutput =~ /http:\\/\\/.*\\/api\\/ce\\/task\\?id=(\\S+)/
-                            if (match) {
-                                env.SONARQUBE_TASK_ID_FRONTEND = match[0][1]
-                                echo "Task ID Frontend: ${env.SONARQUBE_TASK_ID_FRONTEND}"
-                            } else {
-                                error "No se pudo obtener el ceTaskId de Frontend"
+                    withSonarQubeEnv('SonarQubeServer') { 
+                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+                            dir('frontend') {
+                                sh """
+                                    npx sonar-scanner \
+                                      -Dsonar.projectKey=${config.projectKey} \
+                                      -Dsonar.sources=. \
+                                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                                      -Dsonar.login=${SONAR_TOKEN} \
+                                      -Dsonar.language=ts \
+                                      -Dsonar.sourceEncoding=UTF-8 \
+                                      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                                """
                             }
                         }
                     }
@@ -229,20 +207,8 @@ pipeline {
                 echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 10, unit: 'MINUTES') {
                     script {
-                        def ceTaskId = env.SONARQUBE_TASK_ID_FRONTEND
-                        def qgStatus = null
-                        retry(10) {
-                            sleep 10
-                            def response = sh(
-                                script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?analysisId=${ceTaskId}" """,
-                                returnStdout: true
-                            ).trim()
-                            def json = readJSON text: response
-                            qgStatus = json.projectStatus.status
-                            echo "Estado Quality Gate Frontend: ${qgStatus}"
-                            if (qgStatus == 'OK') return
-                            if (qgStatus == 'ERROR') error "Quality Gate Frontend FALLÓ"
-                        }
+                        def qg = waitForQualityGate(abortPipeline: true)
+                        if (qg.status != 'OK') error "Quality Gate Frontend FALLÓ: ${qg.status}"
                     }
                 }
                 echo "==== [Quality Gate Frontend] Finalizado ===="
@@ -254,13 +220,16 @@ pipeline {
             }
         }
 
-        // ===== Deploy =====
         stage('Deploy') {
             when { expression { return !env.CHANGE_ID } }
             steps {
                 script {
                     def branch = env.BRANCH_NAME.toLowerCase()
-                    def profile = branch == 'main' ? 'prod' : branch == 'development' ? 'dev' : branch == 'qa' ? 'qa' : error("No hay configuración de despliegue para la rama '${branch}'")
+                    def profile = ''
+                    if (branch == 'main') profile = 'prod'
+                    else if (branch == 'development') profile = 'dev'
+                    else if (branch == 'qa') profile = 'qa'
+                    else error "No hay configuración de despliegue para la rama '${branch}'"
 
                     echo "=== Deploy con perfil: ${profile} ==="
                     sh "docker-compose -f docker-compose.comp.yml --profile ${profile} down || true"
