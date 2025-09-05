@@ -15,9 +15,8 @@ steps:
     when:
       exists:
         - pharmacy/pom.xml
-        - backend/pom.xml
     commands:
-      - cd pharmacy || cd backend
+      - cd pharmacy 
       - mvn clean install -B
 
   - name: test-backend
@@ -25,9 +24,8 @@ steps:
     when:
       exists:
         - pharmacy/pom.xml
-        - backend/pom.xml
     commands:
-      - cd pharmacy || cd backend
+      - cd pharmacy
       - mvn test -B
 
   - name: sonar-backend
@@ -41,9 +39,8 @@ steps:
         include: [ main, development, qa ]
       exists:
         - pharmacy/pom.xml
-        - backend/pom.xml
     commands:
-      - cd pharmacy || cd backend
+      - cd pharmacy 
       - mvn sonar:sonar \
           -Dsonar.projectKey=FP_Backend_${DRONE_BRANCH} \
           -Dsonar.projectName=FP_Backend_${DRONE_BRANCH} \
