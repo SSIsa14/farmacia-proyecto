@@ -45,6 +45,89 @@ pipeline {
             }
         }
 
+        // ================= Backend =================
+        stage('Build Backend') {
+            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
+            steps {
+                echo "==== [Build Backend] Iniciando ===="
+                dir('pharmacy') { sh 'mvn clean install' }
+                echo "==== [Build Backend] Finalizado ===="
+            }
+            post {
+                success { script { stageStatus['Build Backend'] = 'SUCCESS' } }
+                failure { script { stageStatus['Build Backend'] = 'FAILURE'; failedStage = "Build Backend" } }
+                aborted { script { stageStatus['Build Backend'] = 'NOT_EXECUTED' } }
+            }
+        }
+
+        stage('Test Backend') {
+            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
+            steps {
+                echo "==== [Test Backend] Iniciando ===="
+                dir('pharmacy') { sh 'mvn test' }
+                echo "==== [Test Backend] Finalizado ===="
+            }
+            post {
+                success { script { stageStatus['Test Backend'] = 'SUCCESS' } }
+                failure { script { stageStatus['Test Backend'] = 'FAILURE'; failedStage = "Test Backend" } }
+                aborted { script { stageStatus['Test Backend'] = 'NOT_EXECUTED' } }
+            }
+        }
+
+        stage('SonarQube Backend Analysis') {
+            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
+            steps {
+                echo "==== [SonarQube Backend] Iniciando ===="
+                script {
+                    def branch = env.BRANCH_NAME.toLowerCase()
+                    def sonarConfig = [
+                        'main':        ['projectKey': 'FP:Backend_Prod',        'projectName': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
+                        'development': ['projectKey': 'FP:Backend_Development','projectName': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
+                        'qa':          ['projectKey': 'FP:Backend_Qa',         'projectName': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
+                    ]
+                    def config = sonarConfig[branch]
+                    if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
+
+                    withSonarQubeEnv('SonarQubeServer') { 
+                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+                            dir('pharmacy') {
+                                sh "mvn clean verify sonar:sonar -Dsonar.projectKey=${config.projectKey} -Dsonar.projectName=\"${config.projectName}\" -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN} -B"
+                            }
+                        }
+                    }
+                }
+                echo "==== [SonarQube Backend] Finalizado ===="
+            }
+            post {
+                success { script { stageStatus['SonarQube Backend Analysis'] = 'SUCCESS' } }
+                failure { script { stageStatus['SonarQube Backend Analysis'] = 'FAILURE'; failedStage = "SonarQube Backend Analysis" } }
+                aborted { script { stageStatus['SonarQube Backend Analysis'] = 'NOT_EXECUTED' } }
+            }
+        }
+
+        stage('Quality Gate Backend') {
+            steps {
+                echo "==== [Quality Gate Backend] Iniciando ===="
+                timeout(time: 15, unit: 'MINUTES') {
+                    script {
+                        dir('pharmacy') {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                failedStage = "Quality Gate Backend"
+                                error "Backend Quality Gate failed: ${qg.status}"
+                            }
+                        }
+                    }
+                }
+                echo "==== [Quality Gate Backend] Finalizado ===="
+            }
+            post {
+                success { script { stageStatus['Quality Gate Backend'] = 'SUCCESS' } }
+                failure { script { stageStatus['Quality Gate Backend'] = 'FAILURE'; failedStage = "Quality Gate Backend" } }
+                aborted { script { stageStatus['Quality Gate Backend'] = 'NOT_EXECUTED' } }
+            }
+        }
+
         // ================= Frontend =================
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
@@ -116,15 +199,16 @@ pipeline {
         }
 
         stage('Quality Gate Frontend') {
-            when { expression { fileExists('frontend/package.json') } }
             steps {
                 echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 15, unit: 'MINUTES') {
                     script {
-                        def qg = waitForQualityGate()
-                        if (qg.status != 'OK') {
-                            failedStage = "Quality Gate Frontend"
-                            error "Frontend Quality Gate failed: ${qg.status}"
+                        dir('frontend') {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                failedStage = "Quality Gate Frontend"
+                                error "Frontend Quality Gate failed: ${qg.status}"
+                            }
                         }
                     }
                 }
@@ -134,92 +218,6 @@ pipeline {
                 success { script { stageStatus['Quality Gate Frontend'] = 'SUCCESS' } }
                 failure { script { stageStatus['Quality Gate Frontend'] = 'FAILURE'; failedStage = "Quality Gate Frontend" } }
                 aborted { script { stageStatus['Quality Gate Frontend'] = 'NOT_EXECUTED' } }
-            }
-        }
-
-        // ================= Backend =================
-        stage('Build Backend') {
-            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
-            steps {
-                echo "==== [Build Backend] Iniciando ===="
-                dir('pharmacy') { sh 'mvn clean install' }
-                echo "==== [Build Backend] Finalizado ===="
-            }
-            post {
-                success { script { stageStatus['Build Backend'] = 'SUCCESS' } }
-                failure { script { stageStatus['Build Backend'] = 'FAILURE'; failedStage = "Build Backend" } }
-                aborted { script { stageStatus['Build Backend'] = 'NOT_EXECUTED' } }
-            }
-        }
-
-        stage('Test Backend') {
-            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
-            steps {
-                echo "==== [Test Backend] Iniciando ===="
-                dir('pharmacy') { sh 'mvn test' }
-                echo "==== [Test Backend] Finalizado ===="
-            }
-            post {
-                success { script { stageStatus['Test Backend'] = 'SUCCESS' } }
-                failure { script { stageStatus['Test Backend'] = 'FAILURE'; failedStage = "Test Backend" } }
-                aborted { script { stageStatus['Test Backend'] = 'NOT_EXECUTED' } }
-            }
-        }
-
-        stage('SonarQube Backend Analysis') {
-            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
-            steps {
-                echo "==== [SonarQube Backend] Iniciando ===="
-                script {
-                    def branch = env.BRANCH_NAME.toLowerCase()
-                    def sonarConfig = [
-                        'main':        ['projectKey': 'FP:Backend_Prod',        'projectName': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
-                        'development': ['projectKey': 'FP:Backend_Development','projectName': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
-                        'qa':          ['projectKey': 'FP:Backend_Qa',         'projectName': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
-                    ]
-                    def config = sonarConfig[branch]
-                    if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
-
-                    withSonarQubeEnv('SonarQubeServer') { 
-                        withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-                            dir('pharmacy') {
-                                sh "mvn clean verify sonar:sonar -Dsonar.projectKey=${config.projectKey} -Dsonar.projectName=\"${config.projectName}\" -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN} -B"
-
-                                // Leer taskId desde el backend
-                                def reportFile = 'target/sonar/report-task.txt'
-                                def taskIdLine = readFile(reportFile).split("\n").find { it.startsWith("ceTaskId=") }
-                                if (!taskIdLine) error "No se pudo leer taskId desde ${reportFile}"
-                                def taskId = taskIdLine.split("=")[1].trim()
-                                echo "SonarQube taskId (backend): ${taskId}"
-
-                                // Espera la finalización de la tarea
-                                def status = ""
-                                timeout(time: 15, unit: 'MINUTES') {
-                                    while (status != "SUCCESS" && status != "FAILED") {
-                                        def resp = sh(script: "curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/ce/task?id=${taskId}", returnStdout: true).trim()
-                                        def json = new groovy.json.JsonSlurperClassic().parseText(resp)
-                                        status = json.task.status
-                                        if (status != "SUCCESS" && status != "FAILED") sleep 5
-                                    }
-                                    if (status == "FAILED") error "Backend SonarQube analysis task failed"
-                                }
-
-                                // Verifica el Quality Gate
-                                def qgResp = sh(script: "curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${config.projectKey}", returnStdout: true).trim()
-                                def qgJson = new groovy.json.JsonSlurperClassic().parseText(qgResp)
-                                if (qgJson.projectStatus.status != "OK") {
-                                    error "Backend Quality Gate failed: ${qgJson.projectStatus.status}"
-                                }
-                            }
-                        }
-                    }
-                    echo "==== [SonarQube Backend] Finalizado ===="
-                }
-            }
-            post {
-                success { script { stageStatus['SonarQube Backend Analysis'] = 'SUCCESS' } }
-                failure { script { stageStatus['SonarQube Backend Analysis'] = 'FAILURE'; failedStage = "SonarQube Backend Analysis" } }
-                aborted { script { stageStatus['SonarQube Backend Analysis'] = 'NOT_EXECUTED' } }
             }
         }
 
@@ -247,7 +245,7 @@ pipeline {
             }
         }
 
-    } // stages
+    }
 
     post {
         failure {
