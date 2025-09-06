@@ -1,10 +1,10 @@
 def stageStatus = [:]
 def failedStage = ""
 def allStages = [
-    'Notify Build Start','Checkout', 
-    'Build Backend', 'Test Backend', 
+    'Notify Build Start','Checkout',
+    'Build Backend', 'Test Backend',
     'SonarQube Backend Analysis',
-    'Build Frontend', 'Test Frontend', 
+    'Build Frontend', 'Test Frontend',
     'SonarQube Frontend Analysis',
     'Deploy'
 ]
@@ -87,6 +87,7 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
+                    // Ejecuta el análisis
                     withSonarQubeEnv('SonarQubeServer') { 
                         withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                             dir('pharmacy') {
@@ -98,6 +99,17 @@ pipeline {
                                       -Dsonar.login=${SONAR_TOKEN} \
                                       -B
                                 """
+                            }
+                        }
+                    }
+
+                    // Espera el Quality Gate
+                    timeout(time: 15, unit: 'MINUTES') {
+                        script {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                failedStage = "SonarQube Backend Analysis"
+                                error "Quality Gate failed for Backend: ${qg.status}"
                             }
                         }
                     }
@@ -171,6 +183,17 @@ pipeline {
                                       -Dsonar.sourceEncoding=UTF-8 \
                                       -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                                 """
+                            }
+                        }
+                    }
+
+                    // Quality gate para frontend
+                    timeout(time: 15, unit: 'MINUTES') {
+                        script {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                failedStage = "SonarQube Frontend Analysis"
+                                error "Quality Gate failed for Frontend: ${qg.status}"
                             }
                         }
                     }
