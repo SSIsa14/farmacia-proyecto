@@ -44,8 +44,6 @@ pipeline {
             }
         }
 
-
-
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
             steps {
@@ -140,7 +138,7 @@ pipeline {
         }
         }
 
-        
+
         stage('Build Backend') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
