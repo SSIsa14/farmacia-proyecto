@@ -3,10 +3,9 @@ def failedStage = ""
 def allStages = [
     'Notify Build Start','Checkout',
     'Build Backend', 'Test Backend',
-    'SonarQube Backend Analysis',
+    'SonarQube Backend Analysis','Quality Gate Backend',
     'Build Frontend', 'Test Frontend',
-    'SonarQube Frontend Analysis',
-    'Quality Gate Check',
+    'SonarQube Frontend Analysis','Quality Gate Frontend',
     'Deploy'
 ]
 
@@ -73,7 +72,6 @@ pipeline {
             }
         }
 
-        // ===== SonarQube Backend Analysis =====
         stage('SonarQube Backend Analysis') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
@@ -88,7 +86,6 @@ pipeline {
                     def config = sonarConfig[branch]
                     if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-                    // Ejecuta el análisis
                     withSonarQubeEnv('SonarQubeServer') { 
                         withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                             dir('pharmacy') {
@@ -113,7 +110,27 @@ pipeline {
             }
         }
 
-        // ===== Frontend =====
+        stage('Quality Gate Backend') {
+            steps {
+                echo "==== [Quality Gate Backend] Iniciando ===="
+                timeout(time: 15, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            failedStage = "Quality Gate Backend"
+                            error "Backend Quality Gate failed: ${qg.status}"
+                        }
+                    }
+                }
+                echo "==== [Quality Gate Backend] Finalizado ===="
+            }
+            post {
+                success { script { stageStatus['Quality Gate Backend'] = 'SUCCESS' } }
+                failure { script { stageStatus['Quality Gate Backend'] = 'FAILURE'; failedStage = "Quality Gate Backend" } }
+                aborted { script { stageStatus['Quality Gate Backend'] = 'NOT_EXECUTED' } }
+            }
+        }
+
         stage('Build Frontend') {
             when { expression { fileExists('frontend/package.json') } }
             steps {
@@ -186,25 +203,24 @@ pipeline {
             }
         }
 
-        // ===== Quality Gate Final =====
-        stage('Quality Gate Check') {
+        stage('Quality Gate Frontend') {
             steps {
-                echo "==== [Quality Gate] Iniciando ===="
+                echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 15, unit: 'MINUTES') {
                     script {
                         def qg = waitForQualityGate()
                         if (qg.status != 'OK') {
-                            failedStage = "Quality Gate Check"
-                            error "Quality Gate failed: ${qg.status}"
+                            failedStage = "Quality Gate Frontend"
+                            error "Frontend Quality Gate failed: ${qg.status}"
                         }
                     }
                 }
-                echo "==== [Quality Gate] Finalizado ===="
+                echo "==== [Quality Gate Frontend] Finalizado ===="
             }
             post {
-                success { script { stageStatus['Quality Gate Check'] = 'SUCCESS' } }
-                failure { script { stageStatus['Quality Gate Check'] = 'FAILURE'; failedStage = "Quality Gate Check" } }
-                aborted { script { stageStatus['Quality Gate Check'] = 'NOT_EXECUTED' } }
+                success { script { stageStatus['Quality Gate Frontend'] = 'SUCCESS' } }
+                failure { script { stageStatus['Quality Gate Frontend'] = 'FAILURE'; failedStage = "Quality Gate Frontend" } }
+                aborted { script { stageStatus['Quality Gate Frontend'] = 'NOT_EXECUTED' } }
             }
         }
 
@@ -232,7 +248,6 @@ pipeline {
         }
     }
 
-    // === post igual al tuyo ===
     post {
         failure {
             script {
