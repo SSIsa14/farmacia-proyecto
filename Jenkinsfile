@@ -6,6 +6,7 @@ def allStages = [
     'SonarQube Backend Analysis',
     'Build Frontend', 'Test Frontend',
     'SonarQube Frontend Analysis',
+    'Quality Gate Check',
     'Deploy'
 ]
 
@@ -102,17 +103,6 @@ pipeline {
                             }
                         }
                     }
-
-                    // Espera el Quality Gate
-                    timeout(time: 15, unit: 'MINUTES') {
-                        script {
-                            def qg = waitForQualityGate()
-                            if (qg.status != 'OK') {
-                                failedStage = "SonarQube Backend Analysis"
-                                error "Quality Gate failed for Backend: ${qg.status}"
-                            }
-                        }
-                    }
                 }
                 echo "==== [SonarQube Backend] Finalizado ===="
             }
@@ -186,17 +176,6 @@ pipeline {
                             }
                         }
                     }
-
-                    // Quality gate para frontend
-                    timeout(time: 15, unit: 'MINUTES') {
-                        script {
-                            def qg = waitForQualityGate()
-                            if (qg.status != 'OK') {
-                                failedStage = "SonarQube Frontend Analysis"
-                                error "Quality Gate failed for Frontend: ${qg.status}"
-                            }
-                        }
-                    }
                 }
                 echo "==== [SonarQube Frontend] Finalizado ===="
             }
@@ -204,6 +183,28 @@ pipeline {
                 success { script { stageStatus['SonarQube Frontend Analysis'] = 'SUCCESS' } }
                 failure { script { stageStatus['SonarQube Frontend Analysis'] = 'FAILURE'; failedStage = "SonarQube Frontend Analysis" } }
                 aborted { script { stageStatus['SonarQube Frontend Analysis'] = 'NOT_EXECUTED' } }
+            }
+        }
+
+        // ===== Quality Gate Final =====
+        stage('Quality Gate Check') {
+            steps {
+                echo "==== [Quality Gate] Iniciando ===="
+                timeout(time: 15, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            failedStage = "Quality Gate Check"
+                            error "Quality Gate failed: ${qg.status}"
+                        }
+                    }
+                }
+                echo "==== [Quality Gate] Finalizado ===="
+            }
+            post {
+                success { script { stageStatus['Quality Gate Check'] = 'SUCCESS' } }
+                failure { script { stageStatus['Quality Gate Check'] = 'FAILURE'; failedStage = "Quality Gate Check" } }
+                aborted { script { stageStatus['Quality Gate Check'] = 'NOT_EXECUTED' } }
             }
         }
 
@@ -231,16 +232,15 @@ pipeline {
         }
     }
 
+    // === post igual al tuyo ===
     post {
         failure {
             script {
                 allStages.each { stageName -> if (!stageStatus.containsKey(stageName)) stageStatus[stageName] = 'NOT_EXECUTED' }
-
                 def reportStages = stageStatus.collect { stageName, status ->
                     def color = status == 'FAILURE' ? 'red' : (status == 'SUCCESS' ? 'green' : 'gray')
                     return "<li><b>${stageName}:</b> <span style='color:${color}'>${status}</span></li>"
                 }.join("")
-
                 def fecha = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone('UTC'))
                 def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
                 githubNotify context: contextName, status: 'FAILURE', description: "Falló en ${failedStage}", targetUrl: env.BUILD_URL
@@ -249,22 +249,15 @@ pipeline {
                     to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
                     subject: "TEST FALLIDO",
                     body: """
-<html>
-<body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
-<div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);">
+<html><body>
 <h2 style="color:red;text-align:center;">Reporte de Fallo - Jenkins Pipeline</h2>
 <p><b>Fecha:</b> ${fecha} UTC</p>
 <p><b>Job:</b> ${env.JOB_NAME}</p>
 <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
 <p><b>Rama:</b> ${env.BRANCH_NAME}</p>
-<hr style="border:none;border-top:1px solid #ccc;">
-<p>El pipeline falló en la etapa de <b>${failedStage}</b>.</p>
-<hr style="border:none;border-top:1px solid #ccc;">
 <h3>Estado de las etapas:</h3>
 <ul style="list-style:none;padding-left:0;">${reportStages}</ul>
-</div>
-</body>
-</html>
+</body></html>
 """,
                     mimeType: 'text/html'
                 )
@@ -274,12 +267,10 @@ pipeline {
         success {
             script {
                 allStages.each { stageName -> if (!stageStatus.containsKey(stageName)) stageStatus[stageName] = 'NOT_EXECUTED' }
-
                 def reportStages = stageStatus.collect { stageName, status ->
                     def color = status == 'SUCCESS' ? 'green' : 'gray'
                     return "<li><b>${stageName}:</b> <span style='color:${color}'>${status}</span></li>"
                 }.join("")
-
                 def fecha = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone('UTC'))
                 def contextName = env.CHANGE_ID ? 'continuous-integration/jenkins/pr-merge' : 'continuous-integration/jenkins/branch'
                 githubNotify context: contextName, status: 'SUCCESS', description: "Pipeline OK", targetUrl: env.BUILD_URL
@@ -288,20 +279,15 @@ pipeline {
                     to: 'abrilsofia159@gmail.com,jflores@unis.edu.gt',
                     subject: "TEST EXITOSO",
                     body: """
-<html>
-<body style="font-family:Arial,sans-serif;background-color:#f4f4f4;padding:20px;">
-<div style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);">
+<html><body>
 <h2 style="color:green;text-align:center;">Pipeline Ejecutado Correctamente</h2>
 <p><b>Fecha:</b> ${fecha} UTC</p>
 <p><b>Job:</b> ${env.JOB_NAME}</p>
 <p><b>Build #:</b> ${env.BUILD_NUMBER}</p>
 <p><b>Rama:</b> ${env.BRANCH_NAME}</p>
-<hr style="border:none;border-top:1px solid #ccc;">
 <h3>Estado de las etapas:</h3>
 <ul style="list-style:none;padding-left:0;">${reportStages}</ul>
-</div>
-</body>
-</html>
+</body></html>
 """,
                     mimeType: 'text/html'
                 )
