@@ -1,3 +1,5 @@
+// Variables globales 
+def backendTaskId = ""
 def stageStatus = [:]
 def failedStage = ""
 def allStages = [
@@ -165,8 +167,7 @@ pipeline {
                 aborted { script { stageStatus['Test Backend'] = 'NOT_EXECUTED' } }
             }
         }
-
-        stage('SonarQube Backend Analysis') {
+  stage('SonarQube Backend Analysis') {
             when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
             steps {
                 echo "==== [SonarQube Backend] Iniciando ===="
@@ -184,42 +185,57 @@ pipeline {
                         withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
                             dir('pharmacy') {
                                 sh "mvn clean verify sonar:sonar -Dsonar.projectKey=${config.projectKey} -Dsonar.projectName=\"${config.projectName}\" -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN} -B"
-
-                                // Leer taskId desde el backend
+                                
+                                // Leer taskId desde report-task.txt y guardarlo en la variable global
                                 def reportFile = 'target/sonar/report-task.txt'
                                 def taskIdLine = readFile(reportFile).split("\n").find { it.startsWith("ceTaskId=") }
                                 if (!taskIdLine) error "No se pudo leer taskId desde ${reportFile}"
-                                def taskId = taskIdLine.split("=")[1].trim()
-                                echo "SonarQube taskId (backend): ${taskId}"
-
-                                // Espera la finalización de la tarea
-                                def status = ""
-                                timeout(time: 15, unit: 'MINUTES') {
-                                    while (status != "SUCCESS" && status != "FAILED") {
-                                        def resp = sh(script: "curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/ce/task?id=${taskId}", returnStdout: true).trim()
-                                        def json = new groovy.json.JsonSlurperClassic().parseText(resp)
-                                        status = json.task.status
-                                        if (status != "SUCCESS" && status != "FAILED") sleep 5
-                                    }
-                                    if (status == "FAILED") error "Backend SonarQube analysis task failed"
-                                }
-
-                                // Verifica el Quality Gate
-                                def qgResp = sh(script: "curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${config.projectKey}", returnStdout: true).trim()
-                                def qgJson = new groovy.json.JsonSlurperClassic().parseText(qgResp)
-                                if (qgJson.projectStatus.status != "OK") {
-                                    error "Backend Quality Gate failed: ${qgJson.projectStatus.status}"
-                                }
+                                backendTaskId = taskIdLine.split("=")[1].trim()
+                                echo "SonarQube taskId (backend): ${backendTaskId}"
                             }
                         }
                     }
-                    echo "==== [SonarQube Backend] Finalizado ===="
                 }
+                echo "==== [SonarQube Backend] Finalizado ===="
             }
             post {
                 success { script { stageStatus['SonarQube Backend Analysis'] = 'SUCCESS' } }
                 failure { script { stageStatus['SonarQube Backend Analysis'] = 'FAILURE'; failedStage = "SonarQube Backend Analysis" } }
                 aborted { script { stageStatus['SonarQube Backend Analysis'] = 'NOT_EXECUTED' } }
+            }
+        }
+
+        stage('Quality Gate Backend') {
+            when { expression { backendTaskId != "" } }
+            steps {
+                echo "==== [Quality Gate Backend] Iniciando ===="
+                script {
+                    withCredentials([string(credentialsId: 'sonarqube-backend-main', variable: 'SONAR_TOKEN')]) {
+                        timeout(time: 15, unit: 'MINUTES') {
+                            def status = ""
+                            while (status != "SUCCESS" && status != "FAILED") {
+                                def resp = sh(script: "curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/ce/task?id=${backendTaskId}", returnStdout: true).trim()
+                                def json = new groovy.json.JsonSlurperClassic().parseText(resp)
+                                status = json.task.status
+                                if (status != "SUCCESS" && status != "FAILED") sleep 5
+                            }
+                            if (status == "FAILED") error "Backend SonarQube analysis task failed"
+
+                            // Verificar Quality Gate
+                            def qgResp = sh(script: "curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${json.task.projectKey}", returnStdout: true).trim()
+                            def qgJson = new groovy.json.JsonSlurperClassic().parseText(qgResp)
+                            if (qgJson.projectStatus.status != "OK") {
+                                error "Backend Quality Gate failed: ${qgJson.projectStatus.status}"
+                            }
+                        }
+                    }
+                }
+                echo "==== [Quality Gate Backend] Finalizado ===="
+            }
+            post {
+                success { script { stageStatus['Quality Gate Backend'] = 'SUCCESS' } }
+                failure { script { stageStatus['Quality Gate Backend'] = 'FAILURE'; failedStage = "Quality Gate Backend" } }
+                aborted { script { stageStatus['Quality Gate Backend'] = 'NOT_EXECUTED' } }
             }
         }
 
