@@ -239,7 +239,7 @@ stage('Quality Gate Backend') {
                 // Revisar el Quality Gate solo del backend
                 def qgStatus = sh(script: """
                     curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${config.projectKey} | \
-                    grep -o '"projectStatus":{[^}]*}' | grep -o '"status":"[^"]*"' | cut -d '"' -f4
+                    grep -o '"projectStatus":{[^}]*}' | grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
                 """, returnStdout: true).trim()
 
                 echo "Backend Quality Gate status: ${qgStatus}"
