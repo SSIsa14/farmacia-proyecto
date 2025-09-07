@@ -143,16 +143,24 @@ steps:
       - npm run build || true
 
   - name: test-frontend
-    image: buildkite/puppeteer:latest
+    image: node:18-bullseye
     when:
       exists: [ frontend/package.json ]
     environment:
-      CI: "true"
+      CI: "true"                     # tu karma ya lo usa para singleRun/headless
+      CHROME_BIN: /usr/bin/chromium  # para karma-chrome-launcher
     depends_on: [ build-frontend ]
     commands:
+      - apt-get update
+      - apt-get install -y chromium fonts-liberation libnss3 libasound2 libatk-bridge2.0-0 libgtk-3-0 libgbm1 xvfb
       - cd frontend
-      - npm ci
-      - npm test -- --watch=false --browsers=ChromeHeadless --code-coverage --no-sandbox || npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
+      # 1) intenta instalar “normal”, pero relajando peer deps (Angular viejo)
+      - npm ci --no-audit --no-fund --legacy-peer-deps || {
+          echo "Reintentando sin scripts (posible prepare/postinstall problem)"; 
+          npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts;
+        }
+      # 2) corre los tests en Chrome headless sin sandbox y con cobertura
+      - npm test -- --watch=false --browsers=ChromeHeadless --no-sandbox --code-coverage
 
   # ===== Sonar FRONTEND por rama =====
   - name: sonar-frontend-main
@@ -172,8 +180,8 @@ steps:
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
       - sonar-scanner \
-          -Dsonar.projectKey=FP_Frontend_main \
-          -Dsonar.projectName=FP_Frontend_main \
+          -Dsonar.projectKey=FP:Frontend_Prod \
+          -Dsonar.projectName=FP:Frontend_Prod \
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
@@ -196,8 +204,8 @@ steps:
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
       - sonar-scanner \
-          -Dsonar.projectKey=FP_Frontend_development \
-          -Dsonar.projectName=FP_Frontend_development \
+          -Dsonar.projectKey=FP:Frontend_Development \
+          -Dsonar.projectName=FP:Frontend_Development  \
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
@@ -220,8 +228,8 @@ steps:
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
       - sonar-scanner \
-          -Dsonar.projectKey=FP_Frontend_qa \
-          -Dsonar.projectName=FP_Frontend_qa \
+          -Dsonar.projectKey=FP:Frontend_Qa \
+          -Dsonar.projectName=FP:Frontend_Qa \
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \

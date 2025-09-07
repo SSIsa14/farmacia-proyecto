@@ -1,5 +1,5 @@
 module.exports = function (config) {
-  const isCI = process.env.JENKINS_HOME !== undefined; // detecta si está en Jenkins
+  const isCI = !!process.env.CI || !!process.env.JENKINS_HOME;
   const chromeLauncher = isCI
     ? ['ChromeHeadlessNoSandbox']
     : ['Chrome']; // local
