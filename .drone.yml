@@ -40,8 +40,9 @@ steps:
       exists:
         - pharmacy/pom.xml
     commands:
-      - cd pharmacy 
-      - mvn sonar:sonar \
+      - cd pharmacy
+      - |
+        mvn sonar:sonar \
           -Dsonar.projectKey=FP_Backend_${DRONE_BRANCH} \
           -Dsonar.projectName=FP_Backend_${DRONE_BRANCH} \
           -Dsonar.host.url=$SONAR_HOST_URL \
@@ -80,7 +81,8 @@ steps:
         - frontend/package.json
     commands:
       - cd frontend
-      - sonar-scanner \
+      - |
+        sonar-scanner \
           -Dsonar.projectKey=FP_Frontend_${DRONE_BRANCH} \
           -Dsonar.projectName=FP_Frontend_${DRONE_BRANCH} \
           -Dsonar.sources=. \
