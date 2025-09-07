@@ -240,7 +240,7 @@ steps:
 
   # ===== Notificación =====
   - name: notify
-    image: plugins/mail
+    image: plugins/email
     when:
     status: [ success, failure ]
     settings:
@@ -250,7 +250,7 @@ steps:
         from_secret: smtp_user
       password:
         from_secret: smtp_pass
-      from: "Drone CI <sandovalisabela0524@gmail.com>"
+      from: sandovalisabela0524@gmail.com
       to:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
