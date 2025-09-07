@@ -37,6 +37,24 @@ steps:
       - cd pharmacy
       - mvn -q -B test jacoco:report
 
+  # === Esperar SonarQube (público: /api/system/status) ===
+  - name: wait-for-sonar
+    image: curlimages/curl:8.9.1
+    depends_on: [ test-backend ]
+    environment:
+      SONAR_HOST_URL:
+        from_secret: sonar_host_url   # Debe ser http://sonarqube:9000 (sin punto final)
+    commands:
+      - |
+        echo "Esperando $SONAR_HOST_URL ..."
+        for i in $(seq 1 60); do
+          if curl -fsS "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
+            echo "SonarQube listo (status=UP)"; exit 0
+          fi
+          sleep 5
+        done
+        echo "Timeout esperando SonarQube (status!=UP)"; exit 8
+
   # ===== Sonar BACKEND por rama =====
   - name: sonar-backend-main
     image: maven:3.9.9-eclipse-temurin-17
@@ -48,7 +66,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_backend_main
-    depends_on: [ test-backend ]
+    depends_on: [ wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend_main"; exit 2; }
@@ -57,7 +75,7 @@ steps:
         mvn -B sonar:sonar \
           -DskipTests \
           -Dsonar.projectKey=FP:Backend_Prod \
-          -Dsonar.projectName=FP:Backend_Prod  \
+          -Dsonar.projectName=FP:Backend_Prod \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
@@ -72,7 +90,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_backend_development
-    depends_on: [ test-backend ]
+    depends_on: [ wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend_development"; exit 2; }
@@ -96,7 +114,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_backend_qa
-    depends_on: [ test-backend ]
+    depends_on: [ wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend_qa"; exit 2; }
@@ -116,7 +134,6 @@ steps:
     when:
       exists: [ frontend/package.json ]
     depends_on:
-      # Que frontend empiece solo tras sonar-backend (cualquiera de los 3, aunque se marquen "skipped")
       - sonar-backend-main
       - sonar-backend-development
       - sonar-backend-qa
@@ -148,7 +165,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_main
-    depends_on: [ test-frontend ]
+    depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_main"; exit 2; }
@@ -172,7 +189,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_development
-    depends_on: [ test-frontend ]
+    depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_development"; exit 2; }
@@ -196,7 +213,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_qa
-    depends_on: [ test-frontend ]
+    depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_qa"; exit 2; }
