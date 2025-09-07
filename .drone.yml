@@ -2,6 +2,13 @@ kind: pipeline
 type: docker
 name: farmacia-ci
 
+workspace:
+  base: /drone
+  path: src
+
+clone:
+  depth: 50
+
 steps:
   - name: checkout
     image: alpine/git
@@ -9,61 +16,96 @@ steps:
       - git fetch --all
       - git reset --hard origin/${DRONE_BRANCH}
 
-  # ===== Backend ===
+  # ===== Backend =====
   - name: build-backend
     image: maven:3.9.9-eclipse-temurin-17
     when:
-      exists:
-        - pharmacy/pom.xml
+      exists: [ pharmacy/pom.xml ]
+    environment:
+      MAVEN_OPTS: -Dmaven.test.skip=true
     commands:
-      - cd pharmacy 
-      - mvn clean install -B
+      - cd pharmacy
+      - mvn -q -B clean install -DskipTests
 
   - name: test-backend
     image: maven:3.9.9-eclipse-temurin-17
     when:
-      exists:
-        - pharmacy/pom.xml
+      exists: [ pharmacy/pom.xml ]
     commands:
       - cd pharmacy
-      - mvn test -B
+      - mvn -q -B test jacoco:report
 
-  # === Frontend ===
+  - name: sonar-backend
+    image: maven:3.9.9-eclipse-temurin-17
+    environment:
+      SONAR_HOST_URL:
+        from_secret: sonar_host_url
+      SONAR_TOKEN:
+        from_secret: sonar_token_backend
+    when:
+      branch:
+        include: [ main, development, qa ]
+      exists: [ pharmacy/pom.xml ]
+    depends_on:
+      - test-backend
+    commands:
+      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
+      - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend"; exit 2; }
+      - cd pharmacy
+      - |
+        mvn -B sonar:sonar \
+          -DskipTests \
+          -Dsonar.projectKey=FP_Backend_${DRONE_BRANCH} \
+          -Dsonar.projectName=FP_Backend_${DRONE_BRANCH} \
+          -Dsonar.host.url="$SONAR_HOST_URL" \
+          -Dsonar.token="$SONAR_TOKEN" \
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+
+  # ===== Frontend =====
   - name: build-frontend
     image: node:18
     when:
-      exists:
-        - frontend/package.json
+      exists: [ frontend/package.json ]
     commands:
       - cd frontend
-      - npm install
+      - npm ci
+      - npm run build || true  # opcional
 
   - name: test-frontend
-    image: buildkite/puppeteer:latest  
+    image: buildkite/puppeteer:latest
+    when:
+      exists: [ frontend/package.json ]
+    environment:
+      CI: "true"
     commands:
       - cd frontend
-      - npm install
-      - npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
+      - npm ci
+      - npm test -- --watch=false --browsers=ChromeHeadless --code-coverage --no-sandbox || npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
 
   - name: sonar-frontend
     image: sonarsource/sonar-scanner-cli:latest
     environment:
-      SONAR_HOST_URL: http://sonarqube:9000
+      SONAR_HOST_URL:
+        from_secret: sonar_host_url
       SONAR_TOKEN:
-        from_secret: sonarqube-frontend-${DRONE_BRANCH}
+        from_secret: sonar_token_frontend
     when:
       branch:
         include: [ main, development, qa ]
-      exists:
-        - frontend/package.json
+      exists: [ frontend/package.json ]
+    depends_on:
+      - test-frontend
     commands:
+      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
+      - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend"; exit 2; }
       - cd frontend
+      - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info. Verifica tus tests/coverage"; ls -la coverage || true; exit 3; }
       - sonar-scanner \
           -Dsonar.projectKey=FP_Frontend_${DRONE_BRANCH} \
           -Dsonar.projectName=FP_Frontend_${DRONE_BRANCH} \
           -Dsonar.sources=. \
-          -Dsonar.host.url=$SONAR_HOST_URL \
-          -Dsonar.login=$SONAR_TOKEN \
+          -Dsonar.host.url="$SONAR_HOST_URL" \
+          -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
   - name: notify
@@ -92,5 +134,3 @@ steps:
         Build: ${DRONE_BUILD_NUMBER}
         Estado: ${DRONE_BUILD_STATUS}
       tls: true
-      when:
-        status: [ success, failure ]
