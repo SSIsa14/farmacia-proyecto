@@ -179,7 +179,8 @@ steps:
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_main"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
-      - sonar-scanner \
+      - |
+        sonar-scanner \
           -Dsonar.projectKey=FP:Frontend_Prod \
           -Dsonar.projectName=FP:Frontend_Prod \
           -Dsonar.sources=. \
@@ -203,7 +204,8 @@ steps:
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_development"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
-      - sonar-scanner \
+      - |
+        sonar-scanner \
           -Dsonar.projectKey=FP:Frontend_Development \
           -Dsonar.projectName=FP:Frontend_Development  \
           -Dsonar.sources=. \
@@ -227,7 +229,8 @@ steps:
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_qa"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
-      - sonar-scanner \
+      - |
+        sonar-scanner \
           -Dsonar.projectKey=FP:Frontend_Qa \
           -Dsonar.projectName=FP:Frontend_Qa \
           -Dsonar.sources=. \
@@ -238,10 +241,8 @@ steps:
   # ===== Notificación =====
   - name: notify
     image: plugins/mail
-    depends_on:
-      - sonar-frontend-main
-      - sonar-frontend-development
-      - sonar-frontend-qa
+    when:
+    status: [ success, failure ]
     settings:
       host: smtp.gmail.com
       port: 587
