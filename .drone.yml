@@ -48,7 +48,6 @@ steps:
           -Dsonar.host.url=$SONAR_HOST_URL \
           -Dsonar.login=$SONAR_TOKEN
 
-
   # === Frontend ===
   - name: build-frontend
     image: node:18
@@ -83,7 +82,7 @@ steps:
     commands:
       - cd frontend
       - |
-      - sonar-scanner \
+        sonar-scanner \
           -Dsonar.projectKey=FP_Frontend_${DRONE_BRANCH} \
           -Dsonar.projectName=FP_Frontend_${DRONE_BRANCH} \
           -Dsonar.sources=. \
