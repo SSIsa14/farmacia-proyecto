@@ -39,15 +39,11 @@ steps:
       - npm install
 
   - name: test-frontend
-    image: node:18
-    when:
-      exists:
-        - frontend/package.json
+    image: buildkite/puppeteer:latest
+    network_mode: pharmacy-network   
     commands:
       - cd frontend
       - npm install
-      - npm install --save-dev puppeteer 
-      - export CHROME_BIN=$(node -p "require('puppeteer').executablePath()")
       - npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
 
   - name: sonar-frontend
@@ -71,9 +67,14 @@ steps:
           -Dsonar.login=$SONAR_TOKEN \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
-
   - name: notify
     image: plugins/mail
+    depends_on:
+      - build-backend
+      - test-backend
+      - build-frontend
+      - test-frontend
+      - sonar-frontend
     settings:
       host: smtp.gmail.com
       port: 587
