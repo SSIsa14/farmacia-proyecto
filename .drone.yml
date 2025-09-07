@@ -28,26 +28,6 @@ steps:
       - cd pharmacy
       - mvn test -B
 
-  - name: sonar-backend
-    image: maven:3.9.9-eclipse-temurin-17
-    environment:
-      SONAR_HOST_URL: http://sonarqube:9000
-      SONAR_TOKEN:
-        from_secret: sonarqube-backend-${DRONE_BRANCH}
-    when:
-      branch:
-        include: [ main, development, qa ]
-      exists:
-        - pharmacy/pom.xml
-    commands:
-      - cd pharmacy
-      - mvn sonar:sonar \
-          -Dsonar.projectKey=FP_Backend_${DRONE_BRANCH} \
-          -Dsonar.projectName=FP_Backend_${DRONE_BRANCH} \
-          -Dsonar.host.url=$SONAR_HOST_URL \
-          -Dsonar.login=$SONAR_TOKEN
-
-
   # === Frontend ===
   - name: build-frontend
     image: node:18
