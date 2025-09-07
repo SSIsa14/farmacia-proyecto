@@ -17,7 +17,7 @@ services:
       - "1521:1521"
     volumes:
       - oracle-data:/opt/oracle/oradata
-      - ./db-scripts:/docker-entrypoint-initdb.d
+      - /home/sofi/farmacia-proyecto/db-scripts:/docker-entrypoint-initdb.d
     networks:
       - pharmacy-network
 
