@@ -179,6 +179,7 @@ steps:
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_main"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
+      - mkdir -p .scannerwork && chmod -R 777 .scannerwork || true
       - |
         sonar-scanner \
           -Dsonar.projectKey=FP:Frontend_Prod \
@@ -204,6 +205,7 @@ steps:
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_development"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
+      - mkdir -p .scannerwork && chmod -R 777 .scannerwork || true
       - |
         sonar-scanner \
           -Dsonar.projectKey=FP:Frontend_Development \
@@ -228,6 +230,7 @@ steps:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_qa"; exit 2; }
       - cd frontend
+      - mkdir -p .scannerwork && chmod -R 777 .scannerwork || true
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
       - |
         sonar-scanner \
