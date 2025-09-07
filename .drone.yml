@@ -160,7 +160,7 @@ steps:
           npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts;
         }
       # 2) corre los tests en Chrome headless sin sandbox y con cobertura
-      - npm test -- --watch=false --browsers=ChromeHeadless --no-sandbox --code-coverage
+      - npm test -- --watch=false --code-coverage
 
   # ===== Sonar FRONTEND por rama =====
   - name: sonar-frontend-main
