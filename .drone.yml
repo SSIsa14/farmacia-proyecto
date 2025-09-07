@@ -23,6 +23,7 @@ steps:
       exists: [ pharmacy/pom.xml ]
     environment:
       MAVEN_OPTS: -Dmaven.test.skip=true
+    depends_on: [ checkout ]
     commands:
       - cd pharmacy
       - mvn -q -B clean install -DskipTests
@@ -31,6 +32,7 @@ steps:
     image: maven:3.9.9-eclipse-temurin-17
     when:
       exists: [ pharmacy/pom.xml ]
+    depends_on: [ build-backend ]
     commands:
       - cd pharmacy
       - mvn -q -B test jacoco:report
@@ -46,8 +48,7 @@ steps:
       branch:
         include: [ main, development, qa ]
       exists: [ pharmacy/pom.xml ]
-    depends_on:
-      - test-backend
+    depends_on: [ test-backend ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend"; exit 2; }
@@ -66,6 +67,7 @@ steps:
     image: node:18
     when:
       exists: [ frontend/package.json ]
+    depends_on: [ sonar-backend ]
     commands:
       - cd frontend
       - npm ci
@@ -77,6 +79,7 @@ steps:
       exists: [ frontend/package.json ]
     environment:
       CI: "true"
+    depends_on: [ build-frontend ]
     commands:
       - cd frontend
       - npm ci
@@ -93,8 +96,7 @@ steps:
       branch:
         include: [ main, development, qa ]
       exists: [ frontend/package.json ]
-    depends_on:
-      - test-frontend
+    depends_on: [ test-frontend ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend"; exit 2; }
@@ -108,8 +110,10 @@ steps:
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
 
+  # ===== Notificación ====
   - name: notify
     image: plugins/mail
+    depends_on: [ sonar-frontend ]
     settings:
       host: smtp.gmail.com
       port: 587
