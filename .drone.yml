@@ -216,7 +216,7 @@ steps:
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
-          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
           -Dsonar.working.directory=/tmp/.scannerwork \
           -Djava.io.tmpdir=/tmp
 
@@ -245,7 +245,7 @@ steps:
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
-          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
           -Dsonar.working.directory=/tmp/.scannerwork \
           -Djava.io.tmpdir=/tmp
 
@@ -253,22 +253,65 @@ steps:
   - name: notify
     image: plugins/email
     when:
-    status: [ success, failure ]
+      status: [ success, failure ]   # envía tanto si pasa como si falla
     settings:
       host: smtp.gmail.com
       port: 587
       username:
-        from_secret: smtp_user
+        from_secret: smtp_user       # App Password si usas Gmail con 2FA
       password:
         from_secret: smtp_pass
       from: sandovalisabela0524@gmail.com
       recipients:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
-      subject: "Pipeline FP - ${DRONE_REPO} - ${DRONE_BUILD_STATUS}"
+      subject: "TEST"
+      headers:
+        - "Content-Type: text/html; charset=UTF-8"
       body: |
-        Proyecto: ${DRONE_REPO}
-        Rama: ${DRONE_BRANCH}
-        Build: ${DRONE_BUILD_NUMBER}
-        Estado: ${DRONE_BUILD_STATUS}
-      tls: true
+        <!doctype html>
+        <html lang="es">
+        <head>
+          <meta charset="utf-8">
+          <meta name="color-scheme" content="light dark">
+          <style>
+            body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#0f172a;color:#e5e7eb}
+            .wrap{max-width:640px;margin:0 auto;padding:0 16px 32px}
+            .hero{background:linear-gradient(135deg,#0ea5e9,#6366f1,#22c55e);padding:20px 24px;border-radius:14px 14px 0 0}
+            .hero h1{margin:0;font-size:20px;color:#fff}
+            .badge{display:inline-block;margin-top:8px;padding:4px 10px;border-radius:999px;background:#111827;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+            .card{background:#111827;border:1px solid #1f2937;border-radius:0 0 14px 14px;padding:20px 24px}
+            .kv{width:100%;border-collapse:collapse;margin:8px 0 0}
+            .kv td{padding:10px 6px;border-bottom:1px solid #1f2937;font-size:14px}
+            .kv td:first-child{color:#9ca3af;width:36%}
+            .cta{margin-top:18px}
+            .btn{display:inline-block;background:#22c55e;color:#06110b;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:10px}
+            .footer{margin-top:18px;color:#94a3b8;font-size:12px}
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <div class="hero">
+              <h1>Resultado del Pipeline</h1>
+              <span class="badge"> ${DRONE_BUILD_STATUS} </span>
+            </div>
+            <div class="card">
+              <table class="kv">
+                <tr><td>Proyecto</td><td>${DRONE_REPO}</td></tr>
+                <tr><td>Rama</td><td>${DRONE_BRANCH}</td></tr>
+                <tr><td>Build #</td><td>${DRONE_BUILD_NUMBER}</td></tr>
+                <tr><td>Autor</td><td>${DRONE_COMMIT_AUTHOR}</td></tr>
+                <tr><td>Commit</td><td>${DRONE_COMMIT_SHA}</td></tr>
+                <tr><td>Estado</td><td><strong>${DRONE_BUILD_STATUS}</strong></td></tr>
+              </table>
+              <div class="cta">
+                <a class="btn" href="${DRONE_BUILD_LINK}" target="_blank" rel="noopener">Ver Build</a>
+              </div>
+              <div class="footer">
+                Enviado automáticamente por Drone CI · ${DRONE_BUILD_FINISHED}
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+
