@@ -39,8 +39,7 @@ steps:
       - npm install
 
   - name: test-frontend
-    image: buildkite/puppeteer:latest
-    network_mode: pharmacy-network   
+    image: buildkite/puppeteer:latest  
     commands:
       - cd frontend
       - npm install
