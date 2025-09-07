@@ -43,7 +43,7 @@ steps:
     depends_on: [ test-backend ]
     environment:
       SONAR_HOST_URL:
-        from_secret: http://sonarqube:9000 
+        from_secret: sonar_host_url 
     commands:
       - |
         echo "Esperando $SONAR_HOST_URL ..."
