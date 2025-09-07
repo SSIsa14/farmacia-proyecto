@@ -110,12 +110,6 @@ steps:
 
   - name: notify
     image: plugins/mail
-    depends_on:
-      - build-backend
-      - test-backend
-      - build-frontend
-      - test-frontend
-      - sonar-frontend
     settings:
       host: smtp.gmail.com
       port: 587
