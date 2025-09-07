@@ -103,10 +103,6 @@ services:
     restart: always
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle-xe-pharmacy:1521/XEPDB1
-      SPRING_DATASOURCE_USERNAME: PHARMACY_PROD
-      SPRING_DATASOURCE_PASSWORD: prodpass
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: oracle.jdbc.OracleDriver
     networks:
       - pharmacy-network
     
