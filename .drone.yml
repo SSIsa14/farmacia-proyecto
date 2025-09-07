@@ -46,9 +46,10 @@ steps:
     commands:
       - cd frontend
       - npm install
+      - npm install --save-dev puppeteer 
       - export CHROME_BIN=$(node -p "require('puppeteer').executablePath()")
       - npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
-      
+
   - name: sonar-frontend
     image: sonarsource/sonar-scanner-cli:latest
     environment:
@@ -69,3 +70,27 @@ steps:
           -Dsonar.host.url=$SONAR_HOST_URL \
           -Dsonar.login=$SONAR_TOKEN \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+
+  - name: notify
+    image: plugins/mail
+    settings:
+      host: smtp.gmail.com
+      port: 587
+      username:
+        from_secret: smtp_user
+      password:
+        from_secret: smtp_pass
+      from: "Drone CI <sandovalisabela0524@gmail.com>"
+      to:
+        - jflores@unis.edu.gt
+        - abrilsofia159@gmail.com
+      subject: "Pipeline FP - ${DRONE_REPO} - ${DRONE_BUILD_STATUS}"
+      body: |
+        Proyecto: ${DRONE_REPO}
+        Rama: ${DRONE_BRANCH}
+        Build: ${DRONE_BUILD_NUMBER}
+        Estado: ${DRONE_BUILD_STATUS}
+      tls: true
+      when:
+        status: [ success, failure ]
