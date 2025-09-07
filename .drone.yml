@@ -41,11 +41,12 @@ steps:
         - pharmacy/pom.xml
     commands:
       - cd pharmacy
-      - mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
+      - mvn sonar:sonar \
           -Dsonar.projectKey=FP_Backend_${DRONE_BRANCH} \
           -Dsonar.projectName=FP_Backend_${DRONE_BRANCH} \
           -Dsonar.host.url=$SONAR_HOST_URL \
           -Dsonar.login=$SONAR_TOKEN
+
 
   # === Frontend ===
   - name: build-frontend
