@@ -39,15 +39,16 @@ steps:
       - npm install
 
   - name: test-frontend
-    image: cypress/browsers:node18.16.0-chrome118-ff120
+    image: node:18
     when:
       exists:
         - frontend/package.json
     commands:
       - cd frontend
       - npm install
-      - npm test -- --watch=false --code-coverage
-
+      - export CHROME_BIN=$(node -p "require('puppeteer').executablePath()")
+      - npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
+      
   - name: sonar-frontend
     image: sonarsource/sonar-scanner-cli:latest
     environment:
