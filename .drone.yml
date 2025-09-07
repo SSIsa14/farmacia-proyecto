@@ -61,7 +61,7 @@ steps:
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
-  # ===== Frontend =====
+  # ===== Frontend ====
   - name: build-frontend
     image: node:18
     when:
