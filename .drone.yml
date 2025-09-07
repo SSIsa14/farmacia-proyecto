@@ -47,7 +47,7 @@ steps:
           -Dsonar.host.url=$SONAR_HOST_URL \
           -Dsonar.login=$SONAR_TOKEN
 
-  # ==== Frontend ===
+  # === Frontend ===
   - name: build-frontend
     image: node:18
     when:
