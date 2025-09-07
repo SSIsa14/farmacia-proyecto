@@ -39,7 +39,7 @@ steps:
       - npm install
 
   - name: test-frontend
-    image: node:18
+    image: cypress/browsers:node18.16.0-chrome118-ff120
     when:
       exists:
         - frontend/package.json
