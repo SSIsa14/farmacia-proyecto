@@ -272,7 +272,8 @@ stage('Quality Gate Backend') {
 
                     echo "=== Deploy con perfil: ${profile} ==="
                     sh "docker-compose -f docker-compose.comp.yml --profile ${profile} down || true"
-                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up -d --build"
+                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} build --no-cache"
+                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up -d"
                 }
             }
             post {
