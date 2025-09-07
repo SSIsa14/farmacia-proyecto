@@ -173,13 +173,13 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_main
+      SONAR_USER_HOME: /tmp/sonar         
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_main"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
-      - mkdir -p .scannerwork && chmod -R 777 .scannerwork || true
       - |
         sonar-scanner \
           -Dsonar.projectKey=FP:Frontend_Prod \
@@ -187,7 +187,9 @@ steps:
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
-          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+          -Dsonar.working.directory=/tmp/.scannerwork \
+          -Djava.io.tmpdir=/tmp
 
   - name: sonar-frontend-development
     image: sonarsource/sonar-scanner-cli:latest
@@ -199,6 +201,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_development
+      SONAR_USER_HOME: /tmp/sonar          
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
@@ -214,6 +217,8 @@ steps:
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.working.directory=/tmp/.scannerwork \
+          -Djava.io.tmpdir=/tmp
 
   - name: sonar-frontend-qa
     image: sonarsource/sonar-scanner-cli:latest
@@ -225,6 +230,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_qa
+      SONAR_USER_HOME: /tmp/sonar
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
@@ -240,6 +246,8 @@ steps:
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.working.directory=/tmp/.scannerwork \
+          -Djava.io.tmpdir=/tmp
 
   # ===== Notificación =====
   - name: notify
@@ -254,7 +262,7 @@ steps:
       password:
         from_secret: smtp_pass
       from: sandovalisabela0524@gmail.com
-      to:
+      recipients:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
       subject: "Pipeline FP - ${DRONE_REPO} - ${DRONE_BUILD_STATUS}"
