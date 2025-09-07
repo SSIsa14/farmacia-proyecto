@@ -40,12 +40,10 @@ steps:
   # === Esperar SonarQube (público: /api/system/status) ===
   - name: wait-for-sonar
     image: curlimages/curl:8.9.1
-    extra_hosts:
-      - sonarqube:172.18.0.3
     depends_on: [ test-backend ]
     environment:
       SONAR_HOST_URL:
-        from_secret: sonar_host_url
+        from_secret: http://sonarqube:9000 
     commands:
       - |
         echo "Esperando $SONAR_HOST_URL ..."
