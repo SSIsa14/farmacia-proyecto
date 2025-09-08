@@ -6,9 +6,9 @@ workspace:
   base: /drone
   path: src
 
-# Host de Sonar (no sensible). Evita depender de un secreto para el host.
+# Host Sonar (no sensible). Ajusta si usas otro.
 environment:
-  SONAR_HOST_URL: http://sonarqube:9000   # <-- cámbialo si usas otra URL
+  SONAR_HOST_URL: http://sonarqube:9000
 
 clone:
   depth: 50
@@ -41,7 +41,7 @@ steps:
       - cd pharmacy
       - mvn -q -B test jacoco:report
 
-  # === Esperar SonarQube ===
+  # === Esperar SonarQube arriba ===
   - name: wait-for-sonar
     image: curlimages/curl:8.9.1
     depends_on: [ test-backend ]
@@ -56,7 +56,7 @@ steps:
         done
         echo "Timeout esperando SonarQube (status!=UP)"; exit 8
 
-  # ===== Sonar BACKEND por rama + Quality Gate inline =====
+  # ===== Sonar BACKEND por rama (QGate nativo) =====
   - name: sonar-backend-main
     image: maven:3.9.9-eclipse-temurin-17
     when:
@@ -76,29 +76,9 @@ steps:
           -Dsonar.projectName=FP:Backend_Prod \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
-          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-
-        # --- Quality Gate (usando report-task.txt) ---
-        RT="target/sonar/report-task.txt"
-        test -f "$RT" || { echo "No existe $RT"; exit 3; }
-        CE_ID="$(grep ceTaskId "$RT" | cut -d= -f2)"
-        echo "Esperando CE task $CE_ID ..."
-        for i in $(seq 1 60); do
-          JSON="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/ce/task?id=$CE_ID")" || true
-          STATUS="$(printf '%s' "$JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-          if [ "$STATUS" = "SUCCESS" ]; then
-            ANALYSIS_ID="$(printf '%s' "$JSON" | sed -n 's/.*"analysisId":"\([^"]*\)".*/\1/p')"
-            break
-          elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-            echo "Compute Engine: $STATUS"; exit 1
-          fi
-          sleep 3
-        done
-        test -n "${ANALYSIS_ID:-}" || { echo "Timeout CE backend"; exit 8; }
-        QG="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$ANALYSIS_ID" \
-              | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-        echo "Quality Gate backend (main): $QG"
-        [ "$QG" = "ERROR" ] && exit 1 || true
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
 
   - name: sonar-backend-development
     image: maven:3.9.9-eclipse-temurin-17
@@ -119,28 +99,9 @@ steps:
           -Dsonar.projectName=FP:Backend_Development \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
-          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-
-        RT="target/sonar/report-task.txt"
-        test -f "$RT" || { echo "No existe $RT"; exit 3; }
-        CE_ID="$(grep ceTaskId "$RT" | cut -d= -f2)"
-        echo "Esperando CE task $CE_ID ..."
-        for i in $(seq 1 60); do
-          JSON="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/ce/task?id=$CE_ID")" || true
-          STATUS="$(printf '%s' "$JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-          if [ "$STATUS" = "SUCCESS" ]; then
-            ANALYSIS_ID="$(printf '%s' "$JSON" | sed -n 's/.*"analysisId":"\([^"]*\)".*/\1/p')"
-            break
-          elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-            echo "Compute Engine: $STATUS"; exit 1
-          fi
-          sleep 3
-        done
-        test -n "${ANALYSIS_ID:-}" || { echo "Timeout CE backend"; exit 8; }
-        QG="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$ANALYSIS_ID" \
-              | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-        echo "Quality Gate backend (development): $QG"
-        [ "$QG" = "ERROR" ] && exit 1 || true
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
 
   - name: sonar-backend-qa
     image: maven:3.9.9-eclipse-temurin-17
@@ -161,28 +122,9 @@ steps:
           -Dsonar.projectName=FP:Backend_Qa \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
-          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-
-        RT="target/sonar/report-task.txt"
-        test -f "$RT" || { echo "No existe $RT"; exit 3; }
-        CE_ID="$(grep ceTaskId "$RT" | cut -d= -f2)"
-        echo "Esperando CE task $CE_ID ..."
-        for i in $(seq 1 60); do
-          JSON="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/ce/task?id=$CE_ID")" || true
-          STATUS="$(printf '%s' "$JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-          if [ "$STATUS" = "SUCCESS" ]; then
-            ANALYSIS_ID="$(printf '%s' "$JSON" | sed -n 's/.*"analysisId":"\([^"]*\)".*/\1/p')"
-            break
-          elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-            echo "Compute Engine: $STATUS"; exit 1
-          fi
-          sleep 3
-        done
-        test -n "${ANALYSIS_ID:-}" || { echo "Timeout CE backend"; exit 8; }
-        QG="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$ANALYSIS_ID" \
-              | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-        echo "Quality Gate backend (qa): $QG"
-        [ "$QG" = "ERROR" ] && exit 1 || true
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
 
   # ===== Frontend (build → test) =====
   - name: build-frontend
@@ -216,7 +158,7 @@ steps:
         }
       - npm test -- --watch=false --code-coverage
 
-  # ===== Sonar FRONTEND por rama + Quality Gate inline =====
+  # ===== Sonar FRONTEND por rama (QGate nativo) =====
   - name: sonar-frontend-main
     image: sonarsource/sonar-scanner-cli:latest
     when:
@@ -240,28 +182,9 @@ steps:
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
           -Dsonar.working.directory=/tmp/.scannerwork \
-          -Djava.io.tmpdir=/tmp
-
-        RT=".scannerwork/report-task.txt"
-        test -f "$RT" || { echo "No existe $RT"; exit 3; }
-        CE_ID="$(grep ceTaskId "$RT" | cut -d= -f2)"
-        echo "Esperando CE task $CE_ID ..."
-        for i in $(seq 1 60); do
-          JSON="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/ce/task?id=$CE_ID")" || true
-          STATUS="$(printf '%s' "$JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-          if [ "$STATUS" = "SUCCESS" ]; then
-            ANALYSIS_ID="$(printf '%s' "$JSON" | sed -n 's/.*"analysisId":"\([^"]*\)".*/\1/p')"
-            break
-          elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-            echo "Compute Engine: $STATUS"; exit 1
-          fi
-          sleep 3
-        done
-        test -n "${ANALYSIS_ID:-}" || { echo "Timeout CE frontend"; exit 8; }
-        QG="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$ANALYSIS_ID" \
-              | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-        echo "Quality Gate frontend (main): $QG"
-        [ "$QG" = "ERROR" ] && exit 1 || true
+          -Djava.io.tmpdir=/tmp \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
 
   - name: sonar-frontend-development
     image: sonarsource/sonar-scanner-cli:latest
@@ -286,28 +209,9 @@ steps:
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
           -Dsonar.working.directory=/tmp/.scannerwork \
-          -Djava.io.tmpdir=/tmp
-
-        RT=".scannerwork/report-task.txt"
-        test -f "$RT" || { echo "No existe $RT"; exit 3; }
-        CE_ID="$(grep ceTaskId "$RT" | cut -d= -f2)"
-        echo "Esperando CE task $CE_ID ..."
-        for i in $(seq 1 60); do
-          JSON="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/ce/task?id=$CE_ID")" || true
-          STATUS="$(printf '%s' "$JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-          if [ "$STATUS" = "SUCCESS" ]; then
-            ANALYSIS_ID="$(printf '%s' "$JSON" | sed -n 's/.*"analysisId":"\([^"]*\)".*/\1/p')"
-            break
-          elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-            echo "Compute Engine: $STATUS"; exit 1
-          fi
-          sleep 3
-        done
-        test -n "${ANALYSIS_ID:-}" || { echo "Timeout CE frontend"; exit 8; }
-        QG="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$ANALYSIS_ID" \
-              | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-        echo "Quality Gate frontend (development): $QG"
-        [ "$QG" = "ERROR" ] && exit 1 || true
+          -Djava.io.tmpdir=/tmp \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
 
   - name: sonar-frontend-qa
     image: sonarsource/sonar-scanner-cli:latest
@@ -332,28 +236,9 @@ steps:
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
           -Dsonar.working.directory=/tmp/.scannerwork \
-          -Djava.io.tmpdir=/tmp
-
-        RT=".scannerwork/report-task.txt"
-        test -f "$RT" || { echo "No existe $RT"; exit 3; }
-        CE_ID="$(grep ceTaskId "$RT" | cut -d= -f2)"
-        echo "Esperando CE task $CE_ID ..."
-        for i in $(seq 1 60); do
-          JSON="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/ce/task?id=$CE_ID")" || true
-          STATUS="$(printf '%s' "$JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-          if [ "$STATUS" = "SUCCESS" ]; then
-            ANALYSIS_ID="$(printf '%s' "$JSON" | sed -n 's/.*"analysisId":"\([^"]*\)".*/\1/p')"
-            break
-          elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "CANCELED" ]; then
-            echo "Compute Engine: $STATUS"; exit 1
-          fi
-          sleep 3
-        done
-        test -n "${ANALYSIS_ID:-}" || { echo "Timeout CE frontend"; exit 8; }
-        QG="$(curl -fsS -u "$SONAR_TOKEN:" "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$ANALYSIS_ID" \
-              | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
-        echo "Quality Gate frontend (qa): $QG"
-        [ "$QG" = "ERROR" ] && exit 1 || true
+          -Djava.io.tmpdir=/tmp \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
 
 ---
 kind: pipeline
