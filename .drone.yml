@@ -13,6 +13,13 @@ environment:
 clone:
   depth: 50
 
+trigger:
+  event: [ push, pull_request ]
+  branch: [ main, development, qa ]
+
+concurrency:
+  limit: 1
+
 # Montamos el socket de Docker para los steps de deploy
 volumes:
   - name: docker_sock
@@ -250,6 +257,7 @@ steps:
   - name: deploy-dev
     image: docker:27-cli
     when:
+      event: [ push ]
       branch: [ development ]
     depends_on:
       - sonar-qgate-frontend-development
@@ -266,6 +274,20 @@ steps:
         docker version
         docker compose version || true
 
+        # --- Asegurar red y DB (solo si falta) ---
+        docker network inspect pharmacy-network >/dev/null 2>&1 || docker network create pharmacy-network
+        if ! docker ps -a --format '{{.Names}}' | grep -qx oracle-xe-pharmacy; then
+          echo "DB no existe, levantando perfil db..."
+          docker compose -f "$FILE" --profile db up -d
+        else
+          if [ "$(docker inspect -f '{{.State.Running}}' oracle-xe-pharmacy 2>/dev/null || echo false)" != "true" ]; then
+            echo "DB existe pero está detenida, iniciando..."
+            docker start oracle-xe-pharmacy
+          else
+            echo "DB ya está arriba, seguimos."
+          fi
+        fi
+
         # Baja sólo el proyecto/perfil de dev
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
 
@@ -277,6 +299,7 @@ steps:
   - name: deploy-qa
     image: docker:27-cli
     when:
+      event: [ push ]
       branch: [ qa ]
     depends_on:
       - sonar-qgate-frontend-qa
@@ -293,6 +316,20 @@ steps:
         docker version
         docker compose version || true
 
+         # --- Asegurar red y DB (solo si falta) ---
+        docker network inspect pharmacy-network >/dev/null 2>&1 || docker network create pharmacy-network
+        if ! docker ps -a --format '{{.Names}}' | grep -qx oracle-xe-pharmacy; then
+          echo "DB no existe, levantando perfil db..."
+          docker compose -f "$FILE" --profile db up -d
+        else
+          if [ "$(docker inspect -f '{{.State.Running}}' oracle-xe-pharmacy 2>/dev/null || echo false)" != "true" ]; then
+            echo "DB existe pero está detenida, iniciando..."
+            docker start oracle-xe-pharmacy
+          else
+            echo "DB ya está arriba, seguimos."
+          fi
+        fi
+
 
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
@@ -301,6 +338,7 @@ steps:
   - name: deploy-prod
     image: docker:27-cli
     when:
+      event: [ push ]
       branch: [ main ]
     depends_on:
       - sonar-qgate-frontend-main
@@ -316,6 +354,20 @@ steps:
 
         docker version
         docker compose version || true
+
+        # --- Asegurar red y DB (solo si falta) ---
+        docker network inspect pharmacy-network >/dev/null 2>&1 || docker network create pharmacy-network
+        if ! docker ps -a --format '{{.Names}}' | grep -qx oracle-xe-pharmacy; then
+          echo "DB no existe, levantando perfil db..."
+          docker compose -f "$FILE" --profile db up -d
+        else
+          if [ "$(docker inspect -f '{{.State.Running}}' oracle-xe-pharmacy 2>/dev/null || echo false)" != "true" ]; then
+            echo "DB existe pero está detenida, iniciando..."
+            docker start oracle-xe-pharmacy
+          else
+            echo "DB ya está arriba, seguimos."
+          fi
+        fi
 
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
