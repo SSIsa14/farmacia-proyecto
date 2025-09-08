@@ -2,13 +2,14 @@ version: "3.8"
 
 volumes:
   oracle-data:
-
+  
 networks:
   pharmacy-network:
     external: true
 
 services:
   oracle-db:
+    profiles: ["db"] 
     image: gvenzl/oracle-xe:latest
     container_name: oracle-xe-pharmacy
     environment:
@@ -17,7 +18,7 @@ services:
       - "1521:1521"
     volumes:
       - oracle-data:/opt/oracle/oradata
-      - ./db-scripts:/docker-entrypoint-initdb.d
+      - /home/sofi/farmacia-proyecto/db-scripts:/docker-entrypoint-initdb.d
     networks:
       - pharmacy-network
 
@@ -30,13 +31,12 @@ services:
     container_name: pharmacy-backend-dev
     ports:
       - "8082:8080"
-    depends_on:
-      - oracle-db
+    restart: always
     environment:
       SPRING_PROFILES_ACTIVE: dev
     networks:
       - pharmacy-network
-    restart: always
+    
  
   # Frontend DEV
   frontend-dev:
@@ -53,7 +53,6 @@ services:
       - backend-dev
     networks:
       - pharmacy-network
-    restart: always
 
   # Backend QA
   backend-qa:
@@ -64,13 +63,11 @@ services:
     container_name: pharmacy-backend-qa
     ports:
       - "8083:8080"
-    depends_on:
-      - oracle-db
+    restart: always
     environment:
       SPRING_PROFILES_ACTIVE: qa
     networks:
       - pharmacy-network
-    restart: always
 
   # Frontend QA
   frontend-qa:
@@ -87,7 +84,7 @@ services:
       - backend-qa
     networks:
       - pharmacy-network
-    restart: always
+
 
   # Backend PROD
   backend-prod:
@@ -98,13 +95,12 @@ services:
     container_name: pharmacy-backend-prod
     ports:
       - "8085:8080"
-    depends_on:
-      - oracle-db
+    restart: always
     environment:
       SPRING_PROFILES_ACTIVE: prod
     networks:
       - pharmacy-network
-    restart: always
+    
 
   # Frontend PROD
   frontend-prod:
@@ -121,4 +117,4 @@ services:
       - backend-prod
     networks:
       - pharmacy-network
-    restart: always
+
