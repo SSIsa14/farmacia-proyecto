@@ -71,7 +71,7 @@ steps:
     environment:
       SONAR_TOKEN:
         from_secret: sonar_token_backend_main
-    depends_on: [ wait-for-sonar ]
+    depends_on: [wait-for-sonarqube]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_backend_main"; exit 2; }
       - cd pharmacy
@@ -94,7 +94,7 @@ steps:
     environment:
       SONAR_TOKEN:
         from_secret: sonar_token_backend_development
-    depends_on: [ wait-for-sonar ]
+    depends_on: [ wait-for-sonarqube ]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_backend_development"; exit 2; }
       - cd pharmacy
@@ -117,7 +117,7 @@ steps:
     environment:
       SONAR_TOKEN:
         from_secret: sonar_token_backend_qa
-    depends_on: [ wait-for-sonar ]
+    depends_on: [ wait-for-sonarqube ]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_backend_qa"; exit 2; }
       - cd pharmacy
@@ -138,9 +138,9 @@ steps:
     when:
       exists: [ frontend/package.json ]
     depends_on:
-      - sonar-backend-main
-      - sonar-backend-development
-      - sonar-backend-qa
+      - sonar-qgate-backend-main
+      - sonar-qgate-backend-development
+      - sonar-qgate-backend-qa
     commands:
       - cd frontend
       - npm ci
@@ -174,7 +174,7 @@ steps:
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_main
       SONAR_USER_HOME: /tmp/sonar
-    depends_on: [ test-frontend, wait-for-sonar ]
+    depends_on: [ test-frontend, wait-for-sonarqube  ]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_frontend_main"; exit 2; }
       - cd frontend
@@ -201,7 +201,7 @@ steps:
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_development
       SONAR_USER_HOME: /tmp/sonar
-    depends_on: [ test-frontend, wait-for-sonar ]
+    depends_on: [ test-frontend, wait-for-sonarqube  ]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_frontend_development"; exit 2; }
       - cd frontend
@@ -228,7 +228,7 @@ steps:
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_qa
       SONAR_USER_HOME: /tmp/sonar
-    depends_on: [ test-frontend, wait-for-sonar ]
+    depends_on: [ test-frontend, wait-for-sonarqube  ]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_frontend_qa"; exit 2; }
       - cd frontend
@@ -252,7 +252,7 @@ steps:
     when:
       branch: [ development ]
     depends_on:
-      - sonar-frontend-development
+      - sonar-qgate-frontend-development
     volumes:
       - name: docker_sock
         path: /var/run/docker.sock
@@ -279,7 +279,7 @@ steps:
     when:
       branch: [ qa ]
     depends_on:
-      - sonar-frontend-qa
+      - sonar-qgate-frontend-qa
     volumes:
       - name: docker_sock
         path: /var/run/docker.sock
