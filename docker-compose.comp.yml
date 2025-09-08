@@ -9,6 +9,7 @@ networks:
 
 services:
   oracle-db:
+    profiles: ["db"] 
     image: gvenzl/oracle-xe:latest
     container_name: oracle-xe-pharmacy
     environment:
