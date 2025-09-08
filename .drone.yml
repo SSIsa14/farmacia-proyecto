@@ -246,7 +246,7 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
-  # ===== Deploy por rama =====
+  # ===== Deploy por rama ===
   - name: deploy-dev
     image: docker:27-cli
     when:
