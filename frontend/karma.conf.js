@@ -1,5 +1,9 @@
-// karma.conf.js
 module.exports = function (config) {
+  const isCI = !!process.env.CI || !!process.env.JENKINS_HOME;
+  const chromeLauncher = isCI
+    ? ['ChromeHeadlessNoSandbox']
+    : ['Chrome']; // local
+
   config.set({
     basePath: '',
     frameworks: ['jasmine', '@angular-devkit/build-angular'],
@@ -12,12 +16,12 @@ module.exports = function (config) {
     ],
     client: {
       jasmine: {},
-      clearContext: false // deja visible el reporte en el navegador
+      clearContext: false
     },
     jasmineHtmlReporter: {
-      suppressAll: true // quita duplicados de trazas
+      suppressAll: true
     },
-   coverageReporter: {
+    coverageReporter: {
       dir: require('path').join(__dirname, './coverage'),
       subdir: '.',
       reporters: [
@@ -31,8 +35,14 @@ module.exports = function (config) {
     colors: true,
     logLevel: config.LOG_INFO,
     autoWatch: true,
-    browsers: ['Chrome'],
-    singleRun: false,
-    restartOnFileChange: true
+    browsers: chromeLauncher,
+    customLaunchers: {
+      ChromeHeadlessNoSandbox: {
+        base: 'ChromeHeadless',
+        flags: ['--no-sandbox', '--disable-dev-shm-usage']
+      }
+    },
+    singleRun: isCI,
+    restartOnFileChange: !isCI
   });
 };
