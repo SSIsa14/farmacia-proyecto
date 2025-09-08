@@ -40,14 +40,14 @@ steps:
       event: [ pull_request ]
     depends_on: [ checkout ]
     commands:
-      - git config user.email "ci@drone.local"
-      - git config user.name "Drone CI"
-      # checkout ya dejó la base en origin/${DRONE_BRANCH} (target)
-      - echo "Base: ${DRONE_BRANCH}  | Source:${DRONE_SOURCE_BRANCH}  | Target:${DRONE_TARGET_BRANCH}"
-      - git fetch origin ${DRONE_SOURCE_BRANCH}:${DRONE_SOURCE_BRANCH}
-      # Intentar merge (no commit) del source en la base
-      - git merge --no-ff --no-commit ${DRONE_SOURCE_BRANCH} || { echo "Conflictos de merge"; git merge --abort; exit 1; }
-      - echo "Merge simulado OK para PR #${DRONE_PULL_REQUEST}"
+      - |
+        set -e
+        git config user.email "ci@drone.local"
+        git config user.name "Drone CI"
+        echo "Base: ${DRONE_BRANCH} | Source: ${DRONE_SOURCE_BRANCH} | Target: ${DRONE_TARGET_BRANCH}"
+        git fetch origin ${DRONE_SOURCE_BRANCH}:${DRONE_SOURCE_BRANCH}
+        git merge --no-ff --no-commit ${DRONE_SOURCE_BRANCH} || { echo "Conflictos de merge"; git merge --abort; exit 1; }
+        echo "Merge simulado OK para PR #${DRONE_PULL_REQUEST}"
 
   # ===== Backend (build → test) =====
   - name: build-backend
