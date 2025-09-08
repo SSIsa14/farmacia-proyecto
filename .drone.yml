@@ -6,7 +6,7 @@ workspace:
   base: /drone
   path: src
 
-# Host Sonar (no sensible)
+# Host Sonar 
 environment:
   SONAR_HOST_URL: http://sonarqube:9000
 
@@ -48,7 +48,7 @@ steps:
       - mvn -q -B test jacoco:report
 
   # === Esperar SonarQube arriba ===
-  - name: wait-for-sonar
+  - name: wait-for-sonarqube
     image: curlimages/curl:8.9.1
     depends_on: [ test-backend ]
     commands:
@@ -63,7 +63,7 @@ steps:
         echo "Timeout esperando SonarQube (status!=UP)"; exit 8
 
   # ===== Sonar BACKEND por rama (QGate nativo) =====
-  - name: sonar-backend-main
+  - name: sonar-qgate-backend-main
     image: maven:3.9.9-eclipse-temurin-17
     when:
       branch: [ main ]
@@ -86,7 +86,7 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
-  - name: sonar-backend-development
+  - name: sonar-qgate-backend-development
     image: maven:3.9.9-eclipse-temurin-17
     when:
       branch: [ development ]
@@ -109,7 +109,7 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
-  - name: sonar-backend-qa
+  - name: sonar-qgate-backend-qa
     image: maven:3.9.9-eclipse-temurin-17
     when:
       branch: [ qa ]
@@ -165,7 +165,7 @@ steps:
       - npm test -- --watch=false --code-coverage
 
   # ===== Sonar FRONTEND por rama (QGate nativo) =====
-  - name: sonar-frontend-main
+  - name: sonar-qgate-frontend-main
     image: sonarsource/sonar-scanner-cli:latest
     when:
       branch: [ main ]
@@ -192,7 +192,7 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
-  - name: sonar-frontend-development
+  - name: sonar-qgate-frontend-development
     image: sonarsource/sonar-scanner-cli:latest
     when:
       branch: [ development ]
@@ -219,7 +219,7 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
-  - name: sonar-frontend-qa
+  - name: sonar-qgate-frontend-qa
     image: sonarsource/sonar-scanner-cli:latest
     when:
       branch: [ qa ]
@@ -266,11 +266,8 @@ steps:
         docker version
         docker compose version || true
 
-        # Prepara red externa (si no existe)
-        docker network create pharmacy-network || true
-
         # Baja sólo el proyecto/perfil de dev
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down --remove-orphans || true
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
 
         # Sube dev
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
@@ -296,8 +293,8 @@ steps:
         docker version
         docker compose version || true
 
-        docker network create pharmacy-network || true
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down --remove-orphans || true
+
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 
@@ -320,8 +317,7 @@ steps:
         docker version
         docker compose version || true
 
-        docker network create pharmacy-network || true
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down --remove-orphans || true
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 ---
