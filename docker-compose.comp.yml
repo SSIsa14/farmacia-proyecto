@@ -31,8 +31,6 @@ services:
     container_name: pharmacy-backend-dev
     ports:
       - "8082:8080"
-    depends_on:
-      - oracle-db
     restart: always
     environment:
       SPRING_PROFILES_ACTIVE: dev
@@ -65,8 +63,6 @@ services:
     container_name: pharmacy-backend-qa
     ports:
       - "8083:8080"
-    depends_on:
-      - oracle-db
     restart: always
     environment:
       SPRING_PROFILES_ACTIVE: qa
@@ -99,8 +95,6 @@ services:
     container_name: pharmacy-backend-prod
     ports:
       - "8085:8080"
-    depends_on:
-      - oracle-db
     restart: always
     environment:
       SPRING_PROFILES_ACTIVE: prod
