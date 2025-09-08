@@ -148,7 +148,7 @@ steps:
       SONAR_TOKEN_BACKEND_QA:
         from_secret: sonar_token_backend_qa
     commands:
-      - apk add --no-cache jq
+      - apk add --no-cache curl jq
       - |
         case "$DRONE_BRANCH" in
           main)
