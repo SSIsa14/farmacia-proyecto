@@ -2,8 +2,7 @@ version: "3.8"
 
 volumes:
   oracle-data:
-  name: oracle-data
-
+  
 networks:
   pharmacy-network:
     external: true
