@@ -43,7 +43,7 @@ steps:
     depends_on: [ test-backend ]
     environment:
       SONAR_HOST_URL:
-        from_secret: sonar_host_url 
+        from_secret: sonar_host_url
     commands:
       - |
         echo "Esperando $SONAR_HOST_URL ..."
@@ -128,8 +128,7 @@ steps:
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
-
-  # ===== Quality Gate BACKEND =====
+  # ===== Quality Gate BACKEND (sh + sed básico) =====
   - name: qgate-backend
     image: curlimages/curl:8.9.1
     when:
@@ -148,35 +147,25 @@ steps:
       SONAR_TOKEN_BACKEND_QA:
         from_secret: sonar_token_backend_qa
     commands:
-      - apk add --no-cache curl jq
       - |
+        set -eu
         case "$DRONE_BRANCH" in
-          main)
-            PROJECT_KEY="FP:Backend_Prod"
-            SONAR_TOKEN="$SONAR_TOKEN_BACKEND_MAIN"
-            ;;
-          development)
-            PROJECT_KEY="FP:Backend_Development"
-            SONAR_TOKEN="$SONAR_TOKEN_BACKEND_DEVELOPMENT"
-            ;;
-          qa)
-            PROJECT_KEY="FP:Backend_Qa"
-            SONAR_TOKEN="$SONAR_TOKEN_BACKEND_QA"
-            ;;
-          *)
-            echo "Rama no soportada para Quality Gate (backend): $DRONE_BRANCH"; exit 0;;
+          main)        PROJECT_KEY="FP:Backend_Prod";        SONAR_TOKEN="$SONAR_TOKEN_BACKEND_MAIN" ;;
+          development) PROJECT_KEY="FP:Backend_Development"; SONAR_TOKEN="$SONAR_TOKEN_BACKEND_DEVELOPMENT" ;;
+          qa)          PROJECT_KEY="FP:Backend_Qa";          SONAR_TOKEN="$SONAR_TOKEN_BACKEND_QA" ;;
+          *) echo "Rama no soportada para QGate (backend): $DRONE_BRANCH"; exit 0 ;;
         esac
 
-        test -n "$SONAR_HOST_URL" || { echo "Falta SONAR_HOST_URL"; exit 2; }
-        test -n "$SONAR_TOKEN" || { echo "Falta token Sonar para $DRONE_BRANCH"; exit 2; }
+        test -n "${SONAR_HOST_URL:-}" || { echo "Falta SONAR_HOST_URL"; exit 2; }
+        test -n "${SONAR_TOKEN:-}"    || { echo "Falta token Sonar para $DRONE_BRANCH"; exit 2; }
 
         echo "Esperando Quality Gate de $PROJECT_KEY ..."
         for i in $(seq 1 60); do
-          status=$(curl -fsS -u "$SONAR_TOKEN:" \
-            "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=$PROJECT_KEY" \
-            | jq -r '.projectStatus.status' 2>/dev/null)
+          resp="$(curl -fsS -u "$SONAR_TOKEN:" \
+            "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=$PROJECT_KEY" || true)"
+          status="$(printf '%s' "$resp" | sed -n 's/.*"status":"\([A-Z][A-Z]*\)".*/\1/p')"
 
-          if [ "$status" = "OK" ] || [ "$status" = "ERROR" ] || [ "$status" = "WARN" ]; then
+          if [ -n "${status:-}" ]; then
             echo "Quality Gate (backend): $status"
             [ "$status" = "ERROR" ] && exit 1 || exit 0
           fi
@@ -203,19 +192,17 @@ steps:
     when:
       exists: [ frontend/package.json ]
     environment:
-      CI: "true"                     # tu karma ya lo usa para singleRun/headless
-      CHROME_BIN: /usr/bin/chromium  # para karma-chrome-launcher
+      CI: "true"
+      CHROME_BIN: /usr/bin/chromium
     depends_on: [ build-frontend ]
     commands:
       - apt-get update
       - apt-get install -y chromium fonts-liberation libnss3 libasound2 libatk-bridge2.0-0 libgtk-3-0 libgbm1 xvfb
       - cd frontend
-      # 1) intenta instalar “normal”, pero relajando peer deps (Angular viejo)
       - npm ci --no-audit --no-fund --legacy-peer-deps || {
-          echo "Reintentando sin scripts (posible prepare/postinstall problem)"; 
+          echo "Reintentando sin scripts (posible prepare/postinstall problem)";
           npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts;
         }
-      # 2) corre los tests en Chrome headless sin sandbox y con cobertura
       - npm test -- --watch=false --code-coverage
 
   # ===== Sonar FRONTEND por rama =====
@@ -229,7 +216,7 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_main
-      SONAR_USER_HOME: /tmp/sonar         
+      SONAR_USER_HOME: /tmp/sonar
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
@@ -257,18 +244,17 @@ steps:
         from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_development
-      SONAR_USER_HOME: /tmp/sonar          
+      SONAR_USER_HOME: /tmp/sonar
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_development"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
-      - mkdir -p .scannerwork && chmod -R 777 .scannerwork || true
       - |
         sonar-scanner \
           -Dsonar.projectKey=FP:Frontend_Development \
-          -Dsonar.projectName=FP:Frontend_Development  \
+          -Dsonar.projectName=FP:Frontend_Development \
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
@@ -292,7 +278,6 @@ steps:
       - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_qa"; exit 2; }
       - cd frontend
-      - mkdir -p .scannerwork && chmod -R 777 .scannerwork || true
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
       - |
         sonar-scanner \
@@ -305,7 +290,7 @@ steps:
           -Dsonar.working.directory=/tmp/.scannerwork \
           -Djava.io.tmpdir=/tmp
 
-# ===== Quality Gate FRONTEND =====
+  # ===== Quality Gate FRONTEND (sh + sed básico) =====
   - name: qgate-frontend
     image: curlimages/curl:8.9.1
     when:
@@ -324,59 +309,56 @@ steps:
       SONAR_TOKEN_FRONTEND_QA:
         from_secret: sonar_token_frontend_qa
     commands:
-      - apk add --no-cache jq
       - |
+        set -eu
         case "$DRONE_BRANCH" in
-          main)
-            PROJECT_KEY="FP:Frontend_Prod"
-            SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_MAIN"
-            ;;
-          development)
-            PROJECT_KEY="FP:Frontend_Development"
-            SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_DEVELOPMENT"
-            ;;
-          qa)
-            PROJECT_KEY="FP:Frontend_Qa"
-            SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_QA"
-            ;;
-          *)
-            echo "Rama no soportada para Quality Gate (frontend): $DRONE_BRANCH"; exit 0;;
+          main)        PROJECT_KEY="FP:Frontend_Prod";        SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_MAIN" ;;
+          development) PROJECT_KEY="FP:Frontend_Development"; SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_DEVELOPMENT" ;;
+          qa)          PROJECT_KEY="FP:Frontend_Qa";          SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_QA" ;;
+          *) echo "Rama no soportada para QGate (frontend): $DRONE_BRANCH"; exit 0 ;;
         esac
 
-        test -n "$SONAR_HOST_URL" || { echo "Falta SONAR_HOST_URL"; exit 2; }
-        test -n "$SONAR_TOKEN" || { echo "Falta token Sonar para $DRONE_BRANCH"; exit 2; }
+        test -n "${SONAR_HOST_URL:-}" || { echo "Falta SONAR_HOST_URL"; exit 2; }
+        test -n "${SONAR_TOKEN:-}"    || { echo "Falta token Sonar para $DRONE_BRANCH"; exit 2; }
 
         echo "Esperando Quality Gate de $PROJECT_KEY ..."
         for i in $(seq 1 60); do
-          status=$(curl -fsS -u "$SONAR_TOKEN:" \
-            "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=$PROJECT_KEY" \
-            | jq -r '.projectStatus.status' 2>/dev/null)
+          resp="$(curl -fsS -u "$SONAR_TOKEN:" \
+            "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=$PROJECT_KEY" || true)"
+          status="$(printf '%s' "$resp" | sed -n 's/.*"status":"\([A-Z][A-Z]*\)".*/\1/p')"
 
-          if [ "$status" = "OK" ] || [ "$status" = "ERROR" ] || [ "$status" = "WARN" ]; then
+          if [ -n "${status:-}" ]; then
             echo "Quality Gate (frontend): $status"
             [ "$status" = "ERROR" ] && exit 1 || exit 0
           fi
           sleep 5
         done
         echo "Timeout esperando Quality Gate (frontend)"; exit 8
+---
+kind: pipeline
+type: docker
+name: farmacia-notify
+depends_on:
+  - farmacia-ci
+trigger:
+  status:
+    include: [ success, failure ]
 
-# ===== Notificación =====
+steps:
   - name: notify
     image: plugins/email
-    when:
-      status: [ success, failure ]
     settings:
       host: smtp.gmail.com
       port: 587
       username:
-        from_secret: smtp_user       
+        from_secret: smtp_user
       password:
         from_secret: smtp_pass
       from: sandovalisabela0524@gmail.com
       recipients:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
-      subject: "TEST - Drone"
+      subject: "Pipeline ${DRONE_REPO} • ${DRONE_BUILD_STATUS} • #${DRONE_BUILD_NUMBER}"
       headers:
         - "Content-Type: text/html; charset=UTF-8"
       body: |
