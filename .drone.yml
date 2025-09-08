@@ -166,8 +166,8 @@ steps:
       event: [ pull_request ]
     environment:
       SONAR_TOKEN:
-        from_secret: sonar_token
-    depends_on: [  test-backend, wait-for-sonarqube ]
+        from_secret: sonar-token
+    depends_on: [ test-backend, wait-for-sonarqube ]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_backend_qa"; exit 2; }
       - cd pharmacy
@@ -305,9 +305,9 @@ steps:
       exists: [ frontend/package.json ]
     environment:
       SONAR_TOKEN:
-        from_secret: sonar_token
+        from_secret: sonar-token
       SONAR_USER_HOME: /tmp/sonar
-    depends_on: [  test-frontend, wait-for-sonarqube ]
+    depends_on: [ test-frontend, wait-for-sonarqube ]
     commands:
       - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_frontend_main"; exit 2; }
       - cd frontend
