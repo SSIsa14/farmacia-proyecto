@@ -32,6 +32,23 @@ steps:
     commands:
       - git fetch --all
       - git reset --hard origin/${DRONE_BRANCH}
+  
+
+  - name: pr-merge
+    image: alpine/git
+    when:
+      event: [ pull_request ]
+    depends_on: [ checkout ]
+    commands:
+      - |
+        set -e
+        git config user.email "ci@drone.local"
+        git config user.name "Drone CI"
+        echo "Base: ${DRONE_BRANCH} | Source: ${DRONE_SOURCE_BRANCH} | Target: ${DRONE_TARGET_BRANCH}"
+        git fetch origin ${DRONE_SOURCE_BRANCH}:${DRONE_SOURCE_BRANCH}
+        git merge --no-ff --no-commit ${DRONE_SOURCE_BRANCH} || { echo "Conflictos de merge"; git merge --abort; exit 1; }
+        echo "Merge simulado OK para PR #${DRONE_PULL_REQUEST}"
+
 
   # ===== Backend (build → test) =====
   - name: build-backend
@@ -40,7 +57,7 @@ steps:
       exists: [ pharmacy/pom.xml ]
     environment:
       MAVEN_OPTS: -Dmaven.test.skip=true
-    depends_on: [ checkout ]
+    depends_on: [ checkout, pr-merge ]
     commands:
       - cd pharmacy
       - mvn -q -B clean install -DskipTests
@@ -73,6 +90,7 @@ steps:
   - name: sonar-qgate-backend-main
     image: maven:3.9.9-eclipse-temurin-17
     when:
+      event: [ push ]
       branch: [ main ]
       exists: [ pharmacy/pom.xml ]
     environment:
@@ -96,6 +114,7 @@ steps:
   - name: sonar-qgate-backend-development
     image: maven:3.9.9-eclipse-temurin-17
     when:
+      event: [ push ]
       branch: [ development ]
       exists: [ pharmacy/pom.xml ]
     environment:
@@ -119,6 +138,7 @@ steps:
   - name: sonar-qgate-backend-qa
     image: maven:3.9.9-eclipse-temurin-17
     when:
+      event: [ push ]
       branch: [ qa ]
       exists: [ pharmacy/pom.xml ]
     environment:
@@ -139,15 +159,35 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
+  # ===== Analisis de Sonarqube para PR-Backend =====
+  - name: sonar-qgate-backend-pr
+    image: maven:3.9.9-eclipse-temurin-17
+    when:
+      event: [ pull_request ]
+    environment:
+      SONAR_TOKEN:
+        from_secret: sonar_token
+    depends_on: [  test-backend, wait-for-sonarqube ]
+    commands:
+      - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_backend_qa"; exit 2; }
+      - cd pharmacy
+      - |
+        mvn -B sonar:sonar \
+          -DskipTests \
+          -Dsonar.projectKey=FP:Backend_PR-${DRONE_PULL_REQUEST} \
+          -Dsonar.projectName=FP:Backend_PR-${DRONE_PULL_REQUEST} \
+          -Dsonar.host.url="$SONAR_HOST_URL" \
+          -Dsonar.token="$SONAR_TOKEN" \
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
+
   # ===== Frontend (build) =====
   - name: build-frontend
     image: node:18
     when:
       exists: [ frontend/package.json ]
-    depends_on:
-      - sonar-qgate-backend-main
-      - sonar-qgate-backend-development
-      - sonar-qgate-backend-qa
+    depends_on: [ checkout, pr-merge ]
     commands:
       - cd frontend
       - npm ci
@@ -175,6 +215,7 @@ steps:
   - name: sonar-qgate-frontend-main
     image: sonarsource/sonar-scanner-cli:latest
     when:
+      event: [ push ]
       branch: [ main ]
       exists: [ frontend/package.json ]
     environment:
@@ -202,6 +243,7 @@ steps:
   - name: sonar-qgate-frontend-development
     image: sonarsource/sonar-scanner-cli:latest
     when:
+      event: [ push ]
       branch: [ development ]
       exists: [ frontend/package.json ]
     environment:
@@ -229,6 +271,7 @@ steps:
   - name: sonar-qgate-frontend-qa
     image: sonarsource/sonar-scanner-cli:latest
     when:
+      event: [ push ]
       branch: [ qa ]
       exists: [ frontend/package.json ]
     environment:
@@ -252,6 +295,36 @@ steps:
           -Djava.io.tmpdir=/tmp \
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
+
+
+  # ===== Analisis de SonarQube para PR-Frontend =====
+  - name: sonar-qgate-frontend-pr
+    image: sonarsource/sonar-scanner-cli:latest
+    when:
+      event: [ pull_request ]
+      exists: [ frontend/package.json ]
+    environment:
+      SONAR_TOKEN:
+        from_secret: sonar_token
+      SONAR_USER_HOME: /tmp/sonar
+    depends_on: [  test-frontend, wait-for-sonarqube ]
+    commands:
+      - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_frontend_main"; exit 2; }
+      - cd frontend
+      - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; exit 3; }
+      - |
+        sonar-scanner \
+          -Dsonar.projectKey=FP:Frontend_PR-${DRONE_PULL_REQUEST} \
+          -Dsonar.projectName=FP:Frontend_PR-${DRONE_PULL_REQUEST} \
+          -Dsonar.sources=. \
+          -Dsonar.host.url="$SONAR_HOST_URL" \
+          -Dsonar.token="$SONAR_TOKEN" \
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+          -Dsonar.working.directory=/tmp/.scannerwork \
+          -Djava.io.tmpdir=/tmp \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=600
+
 
   # ===== Deploy por rama ==
   - name: deploy-dev
