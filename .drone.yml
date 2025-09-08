@@ -6,12 +6,18 @@ workspace:
   base: /drone
   path: src
 
-# Host Sonar (no sensible). Ajusta si usas otro.
+# Host Sonar (no sensible)
 environment:
   SONAR_HOST_URL: http://sonarqube:9000
 
 clone:
   depth: 50
+
+# Montamos el socket de Docker para los steps de deploy
+volumes:
+  - name: docker_sock
+    host:
+      path: /var/run/docker.sock
 
 steps:
   - name: checkout
@@ -240,6 +246,84 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
+  # ===== Deploy por rama (docker compose -p <proyecto> --profile <env>) =====
+  - name: deploy-dev
+    image: docker:27-cli
+    when:
+      branch: [ development ]
+    depends_on:
+      - sonar-frontend-development
+    volumes:
+      - name: docker_sock
+        path: /var/run/docker.sock
+    commands:
+      - |
+        set -e
+        FILE=docker-compose.comp.yml
+        PROFILE=dev
+        PROJECT=pharmacy-dev
+
+        docker version
+        docker compose version || true
+
+        # Prepara red externa (si no existe)
+        docker network create pharmacy-network || true
+
+        # Baja sólo el proyecto/perfil de dev
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down --remove-orphans || true
+
+        # Sube dev
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
+
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
+
+  - name: deploy-qa
+    image: docker:27-cli
+    when:
+      branch: [ qa ]
+    depends_on:
+      - sonar-frontend-qa
+    volumes:
+      - name: docker_sock
+        path: /var/run/docker.sock
+    commands:
+      - |
+        set -e
+        FILE=docker-compose.comp.yml
+        PROFILE=qa
+        PROJECT=pharmacy-qa
+
+        docker version
+        docker compose version || true
+
+        docker network create pharmacy-network || true
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down --remove-orphans || true
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
+
+  - name: deploy-prod
+    image: docker:27-cli
+    when:
+      branch: [ main ]
+    depends_on:
+      - sonar-frontend-main
+    volumes:
+      - name: docker_sock
+        path: /var/run/docker.sock
+    commands:
+      - |
+        set -e
+        FILE=docker-compose.comp.yml
+        PROFILE=prod
+        PROJECT=pharmacy-prod
+
+        docker version
+        docker compose version || true
+
+        docker network create pharmacy-network || true
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down --remove-orphans || true
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
+        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 ---
 kind: pipeline
 type: docker
