@@ -132,7 +132,7 @@ steps:
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
 
-  # ===== Frontend (build → test) =====
+  # ===== Frontend (build) =====
   - name: build-frontend
     image: node:18
     when:
