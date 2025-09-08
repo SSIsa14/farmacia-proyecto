@@ -211,7 +211,7 @@ steps:
         }
       - npm test -- --watch=false --code-coverage
 
-  # ===== Sonar FRONTEND por rama (QGate nativo) =====
+  # ===== Sonar FRONTEND por rama (QGate nativo) ====
   - name: sonar-qgate-frontend-main
     image: sonarsource/sonar-scanner-cli:latest
     when:
