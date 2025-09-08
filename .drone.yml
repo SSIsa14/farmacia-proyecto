@@ -267,12 +267,12 @@ steps:
         docker compose version || true
 
         # Baja sólo el proyecto/perfil de dev
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
 
         # Sube dev
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
 
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 
   - name: deploy-qa
     image: docker:27-cli
@@ -294,9 +294,9 @@ steps:
         docker compose version || true
 
 
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 
   - name: deploy-prod
     image: docker:27-cli
@@ -317,9 +317,9 @@ steps:
         docker version
         docker compose version || true
 
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
-        docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" down || true
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
+        docker compose -f "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 ---
 kind: pipeline
 type: docker
