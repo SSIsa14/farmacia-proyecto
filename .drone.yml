@@ -303,7 +303,7 @@ steps:
     when:
       branch: [ main ]
     depends_on:
-      - sonar-frontend-main
+      - sonar-qgate-frontend-main
     volumes:
       - name: docker_sock
         path: /var/run/docker.sock
