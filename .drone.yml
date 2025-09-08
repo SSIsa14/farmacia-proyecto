@@ -6,6 +6,10 @@ workspace:
   base: /drone
   path: src
 
+# ---- Host Sonar público (no sensible): así no dependes del secreto para el host ----
+environment:
+  SONAR_HOST_URL: http://sonarqube:9000   # ajusta si usas ngrok u otra URL
+
 clone:
   depth: 50
 
@@ -37,13 +41,10 @@ steps:
       - cd pharmacy
       - mvn -q -B test jacoco:report
 
-  # === Esperar SonarQube (público: /api/system/status) ===
+  # === Esperar SonarQube (usa el env global SONAR_HOST_URL) ===
   - name: wait-for-sonar
     image: curlimages/curl:8.9.1
     depends_on: [ test-backend ]
-    environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
     commands:
       - |
         echo "Esperando $SONAR_HOST_URL ..."
@@ -62,13 +63,10 @@ steps:
       branch: [ main ]
       exists: [ pharmacy/pom.xml ]
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_backend_main
     depends_on: [ wait-for-sonar ]
     commands:
-      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend_main"; exit 2; }
       - cd pharmacy
       - |
@@ -86,13 +84,10 @@ steps:
       branch: [ development ]
       exists: [ pharmacy/pom.xml ]
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_backend_development
     depends_on: [ wait-for-sonar ]
     commands:
-      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend_development"; exit 2; }
       - cd pharmacy
       - |
@@ -110,13 +105,10 @@ steps:
       branch: [ qa ]
       exists: [ pharmacy/pom.xml ]
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_backend_qa
     depends_on: [ wait-for-sonar ]
     commands:
-      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_backend_qa"; exit 2; }
       - cd pharmacy
       - |
@@ -128,18 +120,18 @@ steps:
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
-  # ===== Quality Gate BACKEND (sh + sed básico) =====
+  # ===== Quality Gate BACKEND =====
   - name: qgate-backend
     image: curlimages/curl:8.9.1
     when:
       branch: [ main, development, qa ]
+      event:
+        include: [ push, pull_request, tag ]
     depends_on:
       - sonar-backend-main
       - sonar-backend-development
       - sonar-backend-qa
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN_BACKEND_MAIN:
         from_secret: sonar_token_backend_main
       SONAR_TOKEN_BACKEND_DEVELOPMENT:
@@ -150,21 +142,23 @@ steps:
       - |
         set -eu
         case "$DRONE_BRANCH" in
-          main)        PROJECT_KEY="FP:Backend_Prod";        SONAR_TOKEN="$SONAR_TOKEN_BACKEND_MAIN" ;;
-          development) PROJECT_KEY="FP:Backend_Development"; SONAR_TOKEN="$SONAR_TOKEN_BACKEND_DEVELOPMENT" ;;
-          qa)          PROJECT_KEY="FP:Backend_Qa";          SONAR_TOKEN="$SONAR_TOKEN_BACKEND_QA" ;;
+          main)        PROJECT_KEY="FP:Backend_Prod";        SONAR_TOKEN="${SONAR_TOKEN_BACKEND_MAIN:-}"        ;;
+          development) PROJECT_KEY="FP:Backend_Development"; SONAR_TOKEN="${SONAR_TOKEN_BACKEND_DEVELOPMENT:-}" ;;
+          qa)          PROJECT_KEY="FP:Backend_Qa";          SONAR_TOKEN="${SONAR_TOKEN_BACKEND_QA:-}"          ;;
           *) echo "Rama no soportada para QGate (backend): $DRONE_BRANCH"; exit 0 ;;
         esac
 
-        test -n "${SONAR_HOST_URL:-}" || { echo "Falta SONAR_HOST_URL"; exit 2; }
-        test -n "${SONAR_TOKEN:-}"    || { echo "Falta token Sonar para $DRONE_BRANCH"; exit 2; }
+        # ---- Saltar si faltan secretos (PR desde fork) ----
+        if [ -z "${SONAR_HOST_URL:-}" ] || [ -z "${SONAR_TOKEN:-}" ]; then
+          echo "Skipping QGate backend: no secrets (posible PR desde fork)."
+          exit 0
+        fi
 
         echo "Esperando Quality Gate de $PROJECT_KEY ..."
         for i in $(seq 1 60); do
           resp="$(curl -fsS -u "$SONAR_TOKEN:" \
             "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=$PROJECT_KEY" || true)"
           status="$(printf '%s' "$resp" | sed -n 's/.*"status":"\([A-Z][A-Z]*\)".*/\1/p')"
-
           if [ -n "${status:-}" ]; then
             echo "Quality Gate (backend): $status"
             [ "$status" = "ERROR" ] && exit 1 || exit 0
@@ -212,14 +206,11 @@ steps:
       branch: [ main ]
       exists: [ frontend/package.json ]
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_main
       SONAR_USER_HOME: /tmp/sonar
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
-      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_main"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
@@ -240,14 +231,11 @@ steps:
       branch: [ development ]
       exists: [ frontend/package.json ]
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_development
       SONAR_USER_HOME: /tmp/sonar
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
-      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_development"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
@@ -268,14 +256,11 @@ steps:
       branch: [ qa ]
       exists: [ frontend/package.json ]
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN:
         from_secret: sonar_token_frontend_qa
       SONAR_USER_HOME: /tmp/sonar
     depends_on: [ test-frontend, wait-for-sonar ]
     commands:
-      - test -n "$SONAR_HOST_URL" || { echo "Falta secreto sonar_host_url"; exit 2; }
       - test -n "$SONAR_TOKEN" || { echo "Falta secreto sonar_token_frontend_qa"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; ls -la coverage || true; exit 3; }
@@ -290,18 +275,18 @@ steps:
           -Dsonar.working.directory=/tmp/.scannerwork \
           -Djava.io.tmpdir=/tmp
 
-  # ===== Quality Gate FRONTEND (sh + sed básico) =====
+  # ===== Quality Gate FRONTEND =====
   - name: qgate-frontend
     image: curlimages/curl:8.9.1
     when:
       branch: [ main, development, qa ]
+      event:
+        include: [ push, pull_request, tag ]
     depends_on:
       - sonar-frontend-main
       - sonar-frontend-development
       - sonar-frontend-qa
     environment:
-      SONAR_HOST_URL:
-        from_secret: sonar_host_url
       SONAR_TOKEN_FRONTEND_MAIN:
         from_secret: sonar_token_frontend_main
       SONAR_TOKEN_FRONTEND_DEVELOPMENT:
@@ -312,21 +297,22 @@ steps:
       - |
         set -eu
         case "$DRONE_BRANCH" in
-          main)        PROJECT_KEY="FP:Frontend_Prod";        SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_MAIN" ;;
-          development) PROJECT_KEY="FP:Frontend_Development"; SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_DEVELOPMENT" ;;
-          qa)          PROJECT_KEY="FP:Frontend_Qa";          SONAR_TOKEN="$SONAR_TOKEN_FRONTEND_QA" ;;
+          main)        PROJECT_KEY="FP:Frontend_Prod";        SONAR_TOKEN="${SONAR_TOKEN_FRONTEND_MAIN:-}"        ;;
+          development) PROJECT_KEY="FP:Frontend_Development"; SONAR_TOKEN="${SONAR_TOKEN_FRONTEND_DEVELOPMENT:-}" ;;
+          qa)          PROJECT_KEY="FP:Frontend_Qa";          SONAR_TOKEN="${SONAR_TOKEN_FRONTEND_QA:-}"          ;;
           *) echo "Rama no soportada para QGate (frontend): $DRONE_BRANCH"; exit 0 ;;
         esac
 
-        test -n "${SONAR_HOST_URL:-}" || { echo "Falta SONAR_HOST_URL"; exit 2; }
-        test -n "${SONAR_TOKEN:-}"    || { echo "Falta token Sonar para $DRONE_BRANCH"; exit 2; }
+        if [ -z "${SONAR_HOST_URL:-}" ] || [ -z "${SONAR_TOKEN:-}" ]; then
+          echo "Skipping QGate frontend: no secrets (posible PR desde fork)."
+          exit 0
+        fi
 
         echo "Esperando Quality Gate de $PROJECT_KEY ..."
         for i in $(seq 1 60); do
           resp="$(curl -fsS -u "$SONAR_TOKEN:" \
             "$SONAR_HOST_URL/api/qualitygates/project_status?projectKey=$PROJECT_KEY" || true)"
           status="$(printf '%s' "$resp" | sed -n 's/.*"status":"\([A-Z][A-Z]*\)".*/\1/p')"
-
           if [ -n "${status:-}" ]; then
             echo "Quality Gate (frontend): $status"
             [ "$status" = "ERROR" ] && exit 1 || exit 0
@@ -358,7 +344,7 @@ steps:
       recipients:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
-      subject: "Pipeline ${DRONE_REPO} • ${DRONE_BUILD_STATUS} • #${DRONE_BUILD_NUMBER}"
+      subject: "TEST DRONE"
       headers:
         - "Content-Type: text/html; charset=UTF-8"
       body: |
