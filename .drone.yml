@@ -297,7 +297,7 @@ steps:
           -Dsonar.qualitygate.timeout=600
 
 
-  # ===== Analisis de SonarQube para PR-Frontend =====
+  # ===== Analisis de SonarQube para PR-Frontend ===
   - name: sonar-qgate-frontend-pr
     image: sonarsource/sonar-scanner-cli:latest
     when:
