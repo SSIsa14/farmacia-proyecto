@@ -280,7 +280,7 @@ pipeline {
                 FE_EXISTS=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/projects/search?projects=${SONAR_FE_PR_KEY}" | grep -o '"key":"'"${SONAR_FE_PR_KEY}"'"' || true)
                 if [ -z "$FE_EXISTS" ]; then
                   curl -s -u ${SONAR_TOKEN}: -X POST "${SONAR_HOST_URL}/api/projects/create" \
-                    -d project=${SONAR_FE_PR_KEY} -d name=${SONAR_FE_PR_NAME} >/dev/null
+                      -d project=${SONAR_FE_PR_KEY} -d name=${SONAR_FE_PR_NAME} >/dev/null
                 fi
               '''
 
@@ -290,37 +290,53 @@ pipeline {
                 BE_EXISTS=$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/projects/search?projects=${SONAR_BE_PR_KEY}" | grep -o '"key":"'"${SONAR_BE_PR_KEY}"'"' || true)
                 if [ -z "$BE_EXISTS" ]; then
                   curl -s -u ${SONAR_TOKEN}: -X POST "${SONAR_HOST_URL}/api/projects/create" \
-                    -d project=${SONAR_BE_PR_KEY} -d name=${SONAR_BE_PR_NAME} >/dev/null
+                      -d project=${SONAR_BE_PR_KEY} -d name=${SONAR_BE_PR_NAME} >/dev/null
                 fi
               '''
 
-              // Analyze FE (if exists)
+              // -------- Analyze FE (si existe) + GitHub Status --------
               if (fileExists('frontend/package.json')) {
-                dir('frontend') {
-                  sh '''
-                    npx sonar-scanner \
-                      -Dsonar.projectKey=${SONAR_FE_PR_KEY} \
-                      -Dsonar.projectName=${SONAR_FE_PR_NAME} \
-                      -Dsonar.sources=. \
-                      -Dsonar.host.url=${SONAR_HOST_URL} \
-                      -Dsonar.login=${SONAR_TOKEN} \
-                      -Dsonar.language=ts \
-                      -Dsonar.sourceEncoding=UTF-8 \
-                      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-                  '''
+                def feLink = "${env.SONAR_HOST_URL}/dashboard?id=${env.SONAR_FE_PR_KEY}"
+                githubNotify context: 'sonar-frontend/analyze', status: 'PENDING', description: 'Analizando FE con SonarQube…'
+                try {
+                  dir('frontend') {
+                    sh '''
+                      npx sonar-scanner \
+                        -Dsonar.projectKey=${SONAR_FE_PR_KEY} \
+                        -Dsonar.projectName=${SONAR_FE_PR_NAME} \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=${SONAR_HOST_URL} \
+                        -Dsonar.login=${SONAR_TOKEN} \
+                        -Dsonar.language=ts \
+                        -Dsonar.sourceEncoding=UTF-8 \
+                        -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+                    '''
+                  }
+                  githubNotify context: 'sonar-frontend/analyze', status: 'SUCCESS', description: 'Análisis FE completado', targetUrl: feLink
+                } catch (e) {
+                  githubNotify context: 'sonar-frontend/analyze', status: 'FAILURE', description: 'Falló análisis FE', targetUrl: feLink
+                  throw e
                 }
               }
 
-              // Analyze BE (if exists)
+              // -------- Analyze BE (si existe) + GitHub Status --------
               if (fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml')) {
-                dir(fileExists('pharmacy/pom.xml') ? 'pharmacy' : 'backend') {
-                  sh '''
-                    mvn -B -DskipTests=false clean verify sonar:sonar \
-                      -Dsonar.projectKey=${SONAR_BE_PR_KEY} \
-                      -Dsonar.projectName=${SONAR_BE_PR_NAME} \
-                      -Dsonar.host.url=${SONAR_HOST_URL} \
-                      -Dsonar.login=${SONAR_TOKEN}
-                  '''
+                def beLink = "${env.SONAR_HOST_URL}/dashboard?id=${env.SONAR_BE_PR_KEY}"
+                githubNotify context: 'sonar-backend/analyze', status: 'PENDING', description: 'Analizando BE con SonarQube…'
+                try {
+                  dir(fileExists('pharmacy/pom.xml') ? 'pharmacy' : 'backend') {
+                    sh '''
+                      mvn -B -DskipTests=false clean verify sonar:sonar \
+                        -Dsonar.projectKey=${SONAR_BE_PR_KEY} \
+                        -Dsonar.projectName=${SONAR_BE_PR_NAME} \
+                        -Dsonar.host.url=${SONAR_HOST_URL} \
+                        -Dsonar.login=${SONAR_TOKEN}
+                    '''
+                  }
+                  githubNotify context: 'sonar-backend/analyze', status: 'SUCCESS', description: 'Análisis BE completado', targetUrl: beLink
+                } catch (e) {
+                  githubNotify context: 'sonar-backend/analyze', status: 'FAILURE', description: 'Falló análisis BE', targetUrl: beLink
+                  throw e
                 }
               }
             }
@@ -335,63 +351,84 @@ pipeline {
       }
     }
 
-    stage('PR: Quality Gate Frontend') {
-      when { expression { return env.CHANGE_ID && fileExists('frontend/package.json') } }
-      steps {
-        echo "==== [PR QG FE] Iniciando ===="
-        script {
-          withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-            timeout(time: 15, unit: 'MINUTES') {
-              def qgStatus = ''
-              while (!['OK','ERROR'].contains(qgStatus)) {
-                sleep 5
-                qgStatus = sh(script: '''
-                  curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_FE_PR_KEY} | \
-                  grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
-                ''', returnStdout: true).trim()
-              }
-              echo "Frontend PR Quality Gate status: ${qgStatus}"
-              if (qgStatus != 'OK') error "Frontend PR Quality Gate failed: ${qgStatus}"
-            }
-          }
-        }
-        echo "==== [PR QG FE] Finalizado ===="
-      }
-      post {
-        success { script { stageStatus['PR: Quality Gate Frontend'] = 'SUCCESS' } }
-        failure { script { stageStatus['PR: Quality Gate Frontend'] = 'FAILURE'; failedStage = "PR: Quality Gate Frontend" } }
-        aborted { script { stageStatus['PR: Quality Gate Frontend'] = 'NOT_EXECUTED' } }
-      }
-    }
 
-    stage('PR: Quality Gate Backend') {
-      when { expression { return env.CHANGE_ID && (fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml')) } }
-      steps {
-        echo "==== [PR QG BE] Iniciando ===="
-        script {
-          withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-            timeout(time: 15, unit: 'MINUTES') {
-              def qgStatus = ''
-              while (!['OK','ERROR'].contains(qgStatus)) {
-                sleep 5
-                qgStatus = sh(script: '''
-                  curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_BE_PR_KEY} | \
-                  grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
-                ''', returnStdout: true).trim()
-              }
-              echo "Backend PR Quality Gate status: ${qgStatus}"
-              if (qgStatus != 'OK') error "Backend PR Quality Gate failed: ${qgStatus}"
+  stage('PR: Quality Gate Frontend') {
+    when { expression { return env.CHANGE_ID && fileExists('frontend/package.json') } }
+    steps {
+      echo "==== [PR QG FE] Iniciando ===="
+      script {
+        def feLink = "${env.SONAR_HOST_URL}/dashboard?id=${env.SONAR_FE_PR_KEY}"
+        githubNotify context: 'sonar-frontend/qgate', status: 'PENDING', description: 'Evaluando Quality Gate FE…'
+
+        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+          timeout(time: 15, unit: 'MINUTES') {
+            def qgStatus = ''
+            while (!['OK','ERROR'].contains(qgStatus)) {
+              sleep 5
+              qgStatus = sh(script: '''
+                curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_FE_PR_KEY} | \
+                grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
+              ''', returnStdout: true).trim()
+            }
+            echo "Frontend PR Quality Gate status: ${qgStatus}"
+
+            if (qgStatus == 'OK') {
+              githubNotify context: 'sonar-frontend/qgate', status: 'SUCCESS', description: 'Quality Gate FE OK', targetUrl: feLink
+            } else {
+              githubNotify context: 'sonar-frontend/qgate', status: 'FAILURE', description: "Quality Gate FE: ${qgStatus}", targetUrl: feLink
+              error "Frontend PR Quality Gate failed: ${qgStatus}"
             }
           }
         }
-        echo "==== [PR QG BE] Finalizado ===="
       }
-      post {
-        success { script { stageStatus['PR: Quality Gate Backend'] = 'SUCCESS' } }
-        failure { script { stageStatus['PR: Quality Gate Backend'] = 'FAILURE'; failedStage = "PR: Quality Gate Backend" } }
-        aborted { script { stageStatus['PR: Quality Gate Backend'] = 'NOT_EXECUTED' } }
+      echo "==== [PR QG FE] Finalizado ===="
+    }
+    post {
+      success { script { stageStatus['PR: Quality Gate Frontend'] = 'SUCCESS' } }
+      failure { script { stageStatus['PR: Quality Gate Frontend'] = 'FAILURE'; failedStage = "PR: Quality Gate Frontend" } }
+      aborted { script { stageStatus['PR: Quality Gate Frontend'] = 'NOT_EXECUTED' } }
+    }
+  }
+
+
+  stage('PR: Quality Gate Backend') {
+  when { expression { return env.CHANGE_ID && (fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml')) } }
+  steps {
+    echo "==== [PR QG BE] Iniciando ===="
+    script {
+      def beLink = "${env.SONAR_HOST_URL}/dashboard?id=${env.SONAR_BE_PR_KEY}"
+      githubNotify context: 'sonar-backend/qgate', status: 'PENDING', description: 'Evaluando Quality Gate BE…'
+
+      withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+        timeout(time: 15, unit: 'MINUTES') {
+          def qgStatus = ''
+          while (!['OK','ERROR'].contains(qgStatus)) {
+            sleep 5
+            qgStatus = sh(script: '''
+              curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_BE_PR_KEY} | \
+              grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
+            ''', returnStdout: true).trim()
+          }
+          echo "Backend PR Quality Gate status: ${qgStatus}"
+
+          if (qgStatus == 'OK') {
+            githubNotify context: 'sonar-backend/qgate', status: 'SUCCESS', description: 'Quality Gate BE OK', targetUrl: beLink
+          } else {
+            githubNotify context: 'sonar-backend/qgate', status: 'FAILURE', description: "Quality Gate BE: ${qgStatus}", targetUrl: beLink
+            error "Backend PR Quality Gate failed: ${qgStatus}"
+          }
+        }
       }
     }
+    echo "==== [PR QG BE] Finalizado ===="
+  }
+  post {
+    success { script { stageStatus['PR: Quality Gate Backend'] = 'SUCCESS' } }
+    failure { script { stageStatus['PR: Quality Gate Backend'] = 'FAILURE'; failedStage = "PR: Quality Gate Backend" } }
+    aborted { script { stageStatus['PR: Quality Gate Backend'] = 'NOT_EXECUTED' } }
+  }
+}
+
 
     // ================= Deploy =================
     stage('Deploy') {
