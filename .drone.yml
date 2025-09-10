@@ -48,7 +48,8 @@ steps:
 
   # ===== Backend (build → test) =====
   - name: status-build-backend-pending
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ] }
     depends_on: [ checkout, pr-merge ]
     settings:
       token:
@@ -64,17 +65,15 @@ steps:
       exists: [ pharmacy/pom.xml ]
     environment:
       MAVEN_OPTS: -Dmaven.test.skip=true
-    depends_on: [ status-build-backend-pending ]
+    depends_on: [ status-build-backend-pending,  checkout, pr-merge  ]
     commands:
       - cd pharmacy
       - mvn -q -B clean install -DskipTests
 
   - name: status-build-backend-success
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ success ] } }
     depends_on: [ build-backend ]
-    when:
-      status:
-        include: [ success ]
     settings:
       token:
         from_secret: github_token
@@ -84,11 +83,9 @@ steps:
       description: "Build backend OK"
 
   - name: status-build-backend-failure
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ failure ] } }
     depends_on: [ build-backend ]
-    when:
-      status:
-        include: [ failure ]
     settings:
       token:
         from_secret: github_token
@@ -98,7 +95,8 @@ steps:
       description: "Falló build backend"
 
   - name: status-test-backend-pending
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ] }
     depends_on: [ build-backend ]
     settings:
       token:
@@ -112,17 +110,15 @@ steps:
     image: maven:3.9.9-eclipse-temurin-17
     when:
       exists: [ pharmacy/pom.xml ]
-    depends_on: [ status-test-backend-pending ]
+    depends_on: [ status-test-backend-pending , build-backend]
     commands:
       - cd pharmacy
       - mvn -q -B test jacoco:report
 
   - name: status-test-backend-success
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ success ] } }
     depends_on: [ test-backend ]
-    when:
-      status:
-        include: [ success ]
     settings:
       token:
         from_secret: github_token
@@ -132,11 +128,9 @@ steps:
       description: "Tests backend OK"
 
   - name: status-test-backend-failure
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ failure ] } }
     depends_on: [ test-backend ]
-    when:
-      status:
-        include: [ failure ]
     settings:
       token:
         from_secret: github_token
@@ -214,7 +208,7 @@ steps:
 
   # ===== Sonar BACKEND PR + status "sonar-backend/analyze-qa" =====
   - name: status-sonar-backend-analyze-qa-pending
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
     when: { event: [ pull_request ] }
     depends_on: [ wait-for-sonarqube ]
     settings:
@@ -242,8 +236,9 @@ steps:
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
           -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=600
 
+
   - name: status-sonar-backend-analyze-qa-success
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
     when: { event: [ pull_request ], status: { include: [ success ] } }
     depends_on: [ sonar-qgate-backend-pr ]
     settings:
@@ -255,7 +250,7 @@ steps:
       description: "Análisis backend (PR) OK"
 
   - name: status-sonar-backend-analyze-qa-failure
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
     when: { event: [ pull_request ], status: { include: [ failure ] } }
     depends_on: [ sonar-qgate-backend-pr ]
     settings:
@@ -268,10 +263,9 @@ steps:
 
   # ===== Frontend (build/test) =====
   - name: status-build-frontend-pending
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], exists: [ frontend/package.json ] }
     depends_on: [ checkout, pr-merge ]
-    when:
-      exists: [ frontend/package.json ]
     settings:
       token:
         from_secret: github_token
@@ -284,19 +278,16 @@ steps:
     image: node:18
     when:
       exists: [ frontend/package.json ]
-    depends_on: [ status-build-frontend-pending ]
+    depends_on: [ checkout, pr-merge, status-build-frontend-pending ]
     commands:
       - cd frontend
       - npm ci
       - npm run build || true
 
   - name: status-build-frontend-success
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ success ] }, exists: [ frontend/package.json ] }
     depends_on: [ build-frontend ]
-    when:
-      status:
-        include: [ success ]
-      exists: [ frontend/package.json ]
     settings:
       token:
         from_secret: github_token
@@ -306,12 +297,9 @@ steps:
       description: "Build frontend OK"
 
   - name: status-build-frontend-failure
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ failure ] }, exists: [ frontend/package.json ] }
     depends_on: [ build-frontend ]
-    when:
-      status:
-        include: [ failure ]
-      exists: [ frontend/package.json ]
     settings:
       token:
         from_secret: github_token
@@ -321,10 +309,9 @@ steps:
       description: "Falló build frontend"
 
   - name: status-test-frontend-pending
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], exists: [ frontend/package.json ] }
     depends_on: [ build-frontend ]
-    when:
-      exists: [ frontend/package.json ]
     settings:
       token:
         from_secret: github_token
@@ -352,12 +339,9 @@ steps:
       - npm test -- --watch=false --code-coverage
 
   - name: status-test-frontend-success
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ success ] }, exists: [ frontend/package.json ] }
     depends_on: [ test-frontend ]
-    when:
-      status:
-        include: [ success ]
-      exists: [ frontend/package.json ]
     settings:
       token:
         from_secret: github_token
@@ -367,12 +351,9 @@ steps:
       description: "Tests frontend OK"
 
   - name: status-test-frontend-failure
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
+    when: { event: [ pull_request ], status: { include: [ failure ] }, exists: [ frontend/package.json ] }
     depends_on: [ test-frontend ]
-    when:
-      status:
-        include: [ failure ]
-      exists: [ frontend/package.json ]
     settings:
       token:
         from_secret: github_token
@@ -459,7 +440,7 @@ steps:
 
   # ===== Sonar FRONTEND PR + status "sonar-frontend/analyze-qa" =====
   - name: status-sonar-frontend-analyze-qa-pending
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
     when: { event: [ pull_request ], exists: [ frontend/package.json ] }
     depends_on: [ test-frontend, wait-for-sonarqube ]
     settings:
@@ -469,7 +450,7 @@ steps:
       context: sonar-frontend/analyze-qa
       target_url: ${DRONE_BUILD_LINK}
       description: "Analizando frontend (PR) en SonarQube…"
-
+      
   - name: sonar-qgate-frontend-pr
     image: sonarsource/sonar-scanner-cli:latest
     when: { event: [ pull_request ], exists: [ frontend/package.json ] }
@@ -496,7 +477,7 @@ steps:
           -Dsonar.qualitygate.timeout=600
 
   - name: status-sonar-frontend-analyze-qa-success
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
     when: { event: [ pull_request ], status: { include: [ success ] } }
     depends_on: [ sonar-qgate-frontend-pr ]
     settings:
@@ -508,7 +489,7 @@ steps:
       description: "Análisis frontend (PR) OK"
 
   - name: status-sonar-frontend-analyze-qa-failure
-    image: plugins/github-status
+    image: drone-plugins/drone-github-status
     when: { event: [ pull_request ], status: { include: [ failure ] } }
     depends_on: [ sonar-qgate-frontend-pr ]
     settings:
@@ -519,6 +500,7 @@ steps:
       target_url: ${DRONE_BUILD_LINK}
       description: "Falló análisis frontend (PR)"
 
+  
   # ==== Deploy por rama ====
   - name: deploy-dev
     image: docker:27-cli
