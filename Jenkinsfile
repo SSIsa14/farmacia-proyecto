@@ -52,9 +52,18 @@ pipeline {
     stage('Build Frontend') {
       when { expression { fileExists('frontend/package.json') } }
       steps {
-        echo "==== [Build Frontend] Iniciando ===="
-        dir('frontend') { sh 'npm install' }
-        echo "==== [Build Frontend] Finalizado ===="
+        script {
+          githubNotify context: 'build-frontend', status: 'PENDING', description: 'Instalando dependencias FE…'
+          try {
+            echo "==== [Build Frontend] Iniciando ===="
+            dir('frontend') { sh 'npm install' }
+            echo "==== [Build Frontend] Finalizado ===="
+            githubNotify context: 'build-frontend', status: 'SUCCESS', description: 'Build FE OK', targetUrl: env.BUILD_URL
+          } catch (e) {
+            githubNotify context: 'build-frontend', status: 'FAILURE', description: 'Build FE falló', targetUrl: env.BUILD_URL
+            throw e
+          }
+        }
       }
       post {
         success { script { stageStatus['Build Frontend'] = 'SUCCESS' } }
@@ -66,9 +75,18 @@ pipeline {
     stage('Test Frontend') {
       when { expression { fileExists('frontend/package.json') } }
       steps {
-        echo "==== [Test Frontend] Iniciando ===="
-        dir('frontend') { sh 'ng test --watch=false --code-coverage' }
-        echo "==== [Test Frontend] Finalizado ===="
+        script {
+          githubNotify context: 'test-frontend', status: 'PENDING', description: 'Ejecutando tests FE…'
+          try {
+            echo "==== [Test Frontend] Iniciando ===="
+            dir('frontend') { sh 'ng test --watch=false --code-coverage' }
+            echo "==== [Test Frontend] Finalizado ===="
+            githubNotify context: 'test-frontend', status: 'SUCCESS', description: 'Tests FE OK', targetUrl: env.BUILD_URL
+          } catch (e) {
+            githubNotify context: 'test-frontend', status: 'FAILURE', description: 'Tests FE fallaron', targetUrl: env.BUILD_URL
+            throw e
+          }
+        }
       }
       post {
         success { script { stageStatus['Test Frontend'] = 'SUCCESS' } }
@@ -144,9 +162,18 @@ pipeline {
     stage('Build Backend') {
       when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
       steps {
-        echo "==== [Build Backend] Iniciando ===="
-        dir('pharmacy') { sh 'mvn clean install' }
-        echo "==== [Build Backend] Finalizado ===="
+        script {
+          githubNotify context: 'build-backend', status: 'PENDING', description: 'Compilando BE…'
+          try {
+            echo "==== [Build Backend] Iniciando ===="
+            dir('pharmacy') { sh 'mvn clean install' }
+            echo "==== [Build Backend] Finalizado ===="
+            githubNotify context: 'build-backend', status: 'SUCCESS', description: 'Build BE OK', targetUrl: env.BUILD_URL
+          } catch (e) {
+            githubNotify context: 'build-backend', status: 'FAILURE', description: 'Build BE falló', targetUrl: env.BUILD_URL
+            throw e
+          }
+        }
       }
       post {
         success { script { stageStatus['Build Backend'] = 'SUCCESS' } }
@@ -158,9 +185,18 @@ pipeline {
     stage('Test Backend') {
       when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
       steps {
-        echo "==== [Test Backend] Iniciando ===="
-        dir('pharmacy') { sh 'mvn test' }
-        echo "==== [Test Backend] Finalizado ===="
+        script {
+          githubNotify context: 'test-backend', status: 'PENDING', description: 'Ejecutando tests BE…'
+          try {
+            echo "==== [Test Backend] Iniciando ===="
+            dir('pharmacy') { sh 'mvn test' }
+            echo "==== [Test Backend] Finalizado ===="
+            githubNotify context: 'test-backend', status: 'SUCCESS', description: 'Tests BE OK', targetUrl: env.BUILD_URL
+          } catch (e) {
+            githubNotify context: 'test-backend', status: 'FAILURE', description: 'Tests BE fallaron', targetUrl: env.BUILD_URL
+            throw e
+          }
+        }
       }
       post {
         success { script { stageStatus['Test Backend'] = 'SUCCESS' } }
