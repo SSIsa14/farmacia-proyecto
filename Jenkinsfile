@@ -429,13 +429,6 @@ pipeline {
             docker version || true
             $COMPOSE version || true
 
-            if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
-              echo "Creando red $NETWORK ..."
-              docker network create "$NETWORK"
-            else
-              echo "Red $NETWORK OK."
-            fi
-
             if ! docker ps -a --format '{{.Names}}' | grep -qx "$DB_CONTAINER"; then
               echo "DB no existe, levantando perfil db..."
               $COMPOSE -f "$FILE" --profile db up -d
