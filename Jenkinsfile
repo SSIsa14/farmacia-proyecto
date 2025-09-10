@@ -6,6 +6,9 @@ def allStages = [
     'SonarQube Backend Analysis','Quality Gate Backend',
     'Build Frontend', 'Test Frontend',
     'SonarQube Frontend Analysis','Quality Gate Frontend',
+    'PR: Sonar (Create + Analyze FE & BE)',
+    'PR: Quality Gate Frontend',
+    'PR: Quality Gate Backend',
     'Deploy'
 ]
 
@@ -75,7 +78,7 @@ pipeline {
         }
 
         stage('SonarQube Frontend Analysis') {
-            when { expression { fileExists('frontend/package.json') } }
+            when { expression { fileExists('frontend/package.json')  && !env.CHANGE_ID } }
             steps {
                 echo "==== [SonarQube Frontend] Iniciando ===="
                 script {
@@ -116,7 +119,7 @@ pipeline {
         }
 
         stage('Quality Gate Frontend') {
-            when { expression { fileExists('frontend/package.json') } }
+            when { expression { fileExists('frontend/package.json') && !env.CHANGE_ID} }
             steps {
                 echo "==== [Quality Gate Frontend] Iniciando ===="
                 timeout(time: 15, unit: 'MINUTES') {
@@ -167,7 +170,7 @@ pipeline {
         }
 
         stage('SonarQube Backend Analysis') {
-            when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
+            when { expression { (fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml')) && !env.CHANGE_ID } }
             steps {
                 echo "==== [SonarQube Backend] Iniciando ===="
                 script {
@@ -199,92 +202,290 @@ pipeline {
 
 
 stage('Quality Gate Backend') {
-    when { expression { fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml') } }
-    steps {
-        echo "==== [Quality Gate Backend] Iniciando ===="
-        script {
-            // Obtener configuración según la rama
-            def branch = env.BRANCH_NAME.toLowerCase()
-            def sonarConfig = [
-                'main':        ['projectKey': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
-                'development': ['projectKey': 'FP:Backend_Development','tokenId': 'sonarqube-backend-development'],
-                'qa':          ['projectKey': 'FP:Backend_Qa',         'tokenId': 'sonarqube-backend-qa']
-            ]
-            def config = sonarConfig[branch]
-            if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
+  when { expression { (fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml')) && !env.CHANGE_ID } }
+  steps {
+    echo "==== [Quality Gate Backend] Iniciando ===="
+    script {
+      // Obtener configuración según la rama
+      def branch = env.BRANCH_NAME.toLowerCase()
+      def sonarConfig = [
+        'main':        ['projectKey': 'FP:Backend_Prod',        'tokenId': 'sonarqube-backend-main'],
+        'development': ['projectKey': 'FP:Backend_Development', 'tokenId': 'sonarqube-backend-development'],
+        'qa':          ['projectKey': 'FP:Backend_Qa',          'tokenId': 'sonarqube-backend-qa']
+      ]
+      def config = sonarConfig[branch]
+      if (!config) error "No hay configuración de SonarQube para la rama '${branch}'"
 
-            // Leer taskId desde archivo generado en el stage de SonarQube Backend
-            def reportFile = 'pharmacy/target/sonar/report-task.txt'
-            def taskIdLine = readFile(reportFile).split("\n").find { it.startsWith("ceTaskId=") }
-            if (!taskIdLine) error "No se pudo leer taskId desde ${reportFile}"
-            def backendTaskId = taskIdLine.split("=")[1].trim()
-            echo "Backend taskId: ${backendTaskId}"
+      // Leer taskId desde archivo generado en el stage de SonarQube Backend
+      def reportFile = 'pharmacy/target/sonar/report-task.txt'
+      def taskIdLine = readFile(reportFile).split("\\n").find { it.startsWith("ceTaskId=") }
+      if (!taskIdLine) error "No se pudo leer taskId desde ${reportFile}"
+      def backendTaskId = taskIdLine.split("=")[1].trim()
+      echo "Backend taskId: ${backendTaskId}"
 
-            // Usar withCredentials para tener acceso al token
-            withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
-
-                // Espera la finalización de la tarea de análisis
-                def status = ""
-                timeout(time: 15, unit: 'MINUTES') {
-                    while (status != "SUCCESS" && status != "FAILED") {
-                        status = sh(script: """
-                            curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/ce/task?id=${backendTaskId} | \
-                            grep -o '"task":{[^}]*}' | grep -o '"status":"[^"]*"' | cut -d '"' -f4
-                        """, returnStdout: true).trim()
-                        if (status != "SUCCESS" && status != "FAILED") sleep 5
-                    }
-                    if (status == "FAILED") error "Backend SonarQube analysis task failed"
-                }
-
-                // Revisar el Quality Gate solo del backend
-                def qgStatus = sh(script: """
-                    curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${config.projectKey} | \
-                    grep -o '"projectStatus":{[^}]*}' | grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
-                """, returnStdout: true).trim()
-
-                echo "Backend Quality Gate status: ${qgStatus}"
-                if (qgStatus != "OK") {
-                    error "Backend Quality Gate failed: ${qgStatus}"
-                }
-            }
+      withCredentials([string(credentialsId: config.tokenId, variable: 'SONAR_TOKEN')]) {
+        // Espera la finalización de la tarea de análisis
+        def status = ""
+        timeout(time: 15, unit: 'MINUTES') {
+          while (status != "SUCCESS" && status != "FAILED") {
+            status = sh(script: """
+              curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/ce/task?id=${backendTaskId} | \
+              grep -o '"task":{[^}]*}' | grep -o '"status":"[^"]*"' | cut -d '"' -f4
+            """, returnStdout: true).trim()
+            if (status != "SUCCESS" && status != "FAILED") sleep 5
+          }
+          if (status == "FAILED") error "Backend SonarQube analysis task failed"
         }
-        echo "==== [Quality Gate Backend] Finalizado ===="
+
+        // Revisar el Quality Gate solo del backend
+        def qgStatus = sh(script: """
+          curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${config.projectKey} | \
+          grep -o '"projectStatus":{[^}]*}' | grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
+        """, returnStdout: true).trim()
+
+        echo "Backend Quality Gate status: ${qgStatus}"
+        if (qgStatus != "OK") {
+          error "Backend Quality Gate failed: ${qgStatus}"
+        }
+      }
     }
-    post {
-        success { script { stageStatus['Quality Gate Backend'] = 'SUCCESS' } }
-        failure { script { stageStatus['Quality Gate Backend'] = 'FAILURE'; failedStage = "Quality Gate Backend" } }
-        aborted { script { stageStatus['Quality Gate Backend'] = 'NOT_EXECUTED' } }
-    }
+    echo "==== [Quality Gate Backend] Finalizado ===="
+  }
+  post {
+    success { script { stageStatus['Quality Gate Backend'] = 'SUCCESS' } }
+    failure { script { stageStatus['Quality Gate Backend'] = 'FAILURE'; failedStage = "Quality Gate Backend" } }
+    aborted { script { stageStatus['Quality Gate Backend'] = 'NOT_EXECUTED' } }
+  }
 }
 
 
-        // ================= Deploy =================
-        stage('Deploy') {
-            when { expression { return !env.CHANGE_ID } }
-            steps {
-                script {
-                    def branch = env.BRANCH_NAME.toLowerCase()
-                    def profile = ''
-                    if (branch == 'main') profile = 'prod'
-                    else if (branch == 'development') profile = 'dev'
-                    else if (branch == 'qa') profile = 'qa'
-                    else error "No hay configuración de despliegue para la rama '${branch}'"
+// ================= Manejo de Pull Request =================
 
-                    echo "=== Deploy con perfil: ${profile} ==="
-                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} down || true"
-                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} build --no-cache"
-                    sh "docker-compose -f docker-compose.comp.yml --profile ${profile} up -d"
-                }
+// ================= Analisis de Frontend y Backend de PR ================
+
+
+stage('PR: Sonar (Create + Analyze FE & BE)') {
+  when { expression { return env.CHANGE_ID } }
+  steps {
+    echo "==== [PR Sonar] PR #${env.CHANGE_ID} ===="
+    script {
+      def prId = env.CHANGE_ID
+      env.SONAR_FE_PR_KEY  = "FP:Frontend_PR_${prId}"
+      env.SONAR_FE_PR_NAME = "FP:Frontend_PR_${prId}"
+      env.SONAR_BE_PR_KEY  = "FP:Backend_PR_${prId}"
+      env.SONAR_BE_PR_NAME = "FP:Backend_PR_${prId}"
+
+      withSonarQubeEnv('SonarQubeServer') {
+        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+          sh """
+            set -e
+            FE_EXISTS=\$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/projects/search?projects=${env.SONAR_FE_PR_KEY}" | grep -o '"key":"${env.SONAR_FE_PR_KEY}"' || true)
+            if [ -z "\$FE_EXISTS" ]; then
+              curl -s -u ${SONAR_TOKEN}: -X POST "${SONAR_HOST_URL}/api/projects/create" \
+                   -d project=${env.SONAR_FE_PR_KEY} -d name=${env.SONAR_FE_PR_NAME} >/dev/null
+            fi
+          """
+          sh """
+            set -e
+            BE_EXISTS=\$(curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/projects/search?projects=${env.SONAR_BE_PR_KEY}" | grep -o '"key":"${env.SONAR_BE_PR_KEY}"' || true)
+            if [ -z "\$BE_EXISTS" ]; then
+              curl -s -u ${SONAR_TOKEN}: -X POST "${SONAR_HOST_URL}/api/projects/create" \
+                   -d project=${env.SONAR_BE_PR_KEY} -d name=${env.SONAR_BE_PR_NAME} >/dev/null
+            fi
+          """
+          if (fileExists('frontend/package.json')) {
+            dir('frontend') {
+              sh """
+                npx sonar-scanner \
+                  -Dsonar.projectKey=${env.SONAR_FE_PR_KEY} \
+                  -Dsonar.projectName="${env.SONAR_FE_PR_NAME}" \
+                  -Dsonar.sources=. \
+                  -Dsonar.host.url=${SONAR_HOST_URL} \
+                  -Dsonar.login=${SONAR_TOKEN} \
+                  -Dsonar.language=ts \
+                  -Dsonar.sourceEncoding=UTF-8 \
+                  -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+              """
             }
-            post {
-                success { script { stageStatus['Deploy'] = 'SUCCESS' } }
-                failure { script { stageStatus['Deploy'] = 'FAILURE'; failedStage = "Deploy" } }
-                aborted { script { stageStatus['Deploy'] = 'NOT_EXECUTED' } }
+          }
+          if (fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml')) {
+            dir(fileExists('pharmacy/pom.xml') ? 'pharmacy' : 'backend') {
+              sh """
+                mvn -B -DskipTests=false clean verify sonar:sonar \
+                  -Dsonar.projectKey=${env.SONAR_BE_PR_KEY} \
+                  -Dsonar.projectName="${env.SONAR_BE_PR_NAME}" \
+                  -Dsonar.host.url=${SONAR_HOST_URL} \
+                  -Dsonar.login=${SONAR_TOKEN}
+              """
             }
+          }
         }
+      }
+    }
+    echo "==== [PR Sonar] Finalizado ===="
+  }
+  post {
+    success { script { stageStatus['PR: Sonar (Create + Analyze FE & BE)'] = 'SUCCESS' } }
+    failure { script { stageStatus['PR: Sonar (Create + Analyze FE & BE)'] = 'FAILURE'; failedStage = "PR: Sonar (Create + Analyze FE & BE)" } }
+    aborted { script { stageStatus['PR: Sonar (Create + Analyze FE & BE)'] = 'NOT_EXECUTED' } }
+  }
+}
 
-    } // stages
 
+// ================= Quality Gate de  Frontend y Backend de PR ================
+
+
+stage('PR: Quality Gate Frontend') {
+  when { expression { return env.CHANGE_ID && fileExists('frontend/package.json') } }
+  steps {
+    echo "==== [PR QG FE] Iniciando ===="
+    script {
+      withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+        timeout(time: 15, unit: 'MINUTES') {
+          def qgStatus = ''
+          while (!['OK','ERROR'].contains(qgStatus)) {
+            sleep 5
+            qgStatus = sh(script: """
+              curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${env.SONAR_FE_PR_KEY} | \
+              grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
+            """, returnStdout: true).trim()
+          }
+          echo "Frontend PR Quality Gate status: ${qgStatus}"
+          if (qgStatus != 'OK') error "Frontend PR Quality Gate failed: ${qgStatus}"
+        }
+      }
+    }
+    echo "==== [PR QG FE] Finalizado ===="
+  }
+  post {
+    success { script { stageStatus['PR: Quality Gate Frontend'] = 'SUCCESS' } }
+    failure { script { stageStatus['PR: Quality Gate Frontend'] = 'FAILURE'; failedStage = "PR: Quality Gate Frontend" } }
+    aborted { script { stageStatus['PR: Quality Gate Frontend'] = 'NOT_EXECUTED' } }
+  }
+}
+
+
+stage('PR: Quality Gate Backend') {
+  when { expression { return env.CHANGE_ID && (fileExists('pharmacy/pom.xml') || fileExists('backend/pom.xml')) } }
+  steps {
+    echo "==== [PR QG BE] Iniciando ===="
+    script {
+      withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+        timeout(time: 15, unit: 'MINUTES') {
+          def qgStatus = ''
+          while (!['OK','ERROR'].contains(qgStatus)) {
+            sleep 5
+            qgStatus = sh(script: """
+              curl -s -u ${SONAR_TOKEN}: ${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${env.SONAR_BE_PR_KEY} | \
+              grep -o '"status":"[^"]*"' | cut -d '"' -f4 | head -n1
+            """, returnStdout: true).trim()
+          }
+          echo "Backend PR Quality Gate status: ${qgStatus}"
+          if (qgStatus != 'OK') error "Backend PR Quality Gate failed: ${qgStatus}"
+        }
+      }
+    }
+    echo "==== [PR QG BE] Finalizado ===="
+  }
+  post {
+    success { script { stageStatus['PR: Quality Gate Backend'] = 'SUCCESS' } }
+    failure { script { stageStatus['PR: Quality Gate Backend'] = 'FAILURE'; failedStage = "PR: Quality Gate Backend" } }
+    aborted { script { stageStatus['PR: Quality Gate Backend'] = 'NOT_EXECUTED' } }
+  }
+}
+
+
+
+// ================= Deploy =================
+    stage('Deploy') {
+  when { expression { return !env.CHANGE_ID } } // NO deploy en PR
+  steps {
+    script {
+      def branch = env.BRANCH_NAME?.toLowerCase()
+      def profile = ''
+      def project = ''
+
+      if (branch == 'main') {
+        profile = 'prod'
+        project = 'pharmacy-prod'
+      } else if (branch == 'development') {
+        profile = 'dev'
+        project = 'pharmacy-dev'
+      } else if (branch == 'qa') {
+        profile = 'qa'
+        project = 'pharmacy-qa'
+      } else {
+        error "No hay configuración de despliegue para la rama '${branch}'"
+      }
+
+      sh """
+        set -e
+
+        FILE="docker-compose.comp.yml"
+        PROFILE="${profile}"
+        PROJECT="${project}"
+        DB_CONTAINER="oracle-xe-pharmacy"
+        NETWORK="pharmacy-network"
+
+        echo "=== Deploy con perfil: \$PROFILE | proyecto: \$PROJECT ==="
+
+        # --- Detectar comando compose (v2 vs legacy) ---
+        if docker compose version >/dev/null 2>&1; then
+          COMPOSE="docker compose"
+        elif docker-compose version >/dev/null 2>&1; then
+          COMPOSE="docker-compose"
+        else
+          echo "ERROR: ni 'docker compose' ni 'docker-compose' disponibles"
+          exit 1
+        fi
+
+        docker version || true
+        \$COMPOSE version || true
+
+        # --- Red compartida (si no existe, crearla) ---
+        if ! docker network inspect "\$NETWORK" >/dev/null 2>&1; then
+          echo "Creando red \$NETWORK ..."
+          docker network create "\$NETWORK"
+        else
+          echo "Red \$NETWORK OK."
+        fi
+
+        # --- Asegurar DB arriba (solo si falta) ---
+        if ! docker ps -a --format '{{.Names}}' | grep -qx "\$DB_CONTAINER"; then
+          echo "DB no existe, levantando perfil db..."
+          \$COMPOSE -f "\$FILE" --profile db up -d
+        else
+          RUNNING=\$(docker inspect -f '{{.State.Running}}' "\$DB_CONTAINER" 2>/dev/null || echo false)
+          if [ "\$RUNNING" != "true" ]; then
+            echo "DB existe pero está detenida, iniciando..."
+            docker start "\$DB_CONTAINER"
+          else
+            echo "DB ya está arriba, seguimos."
+          fi
+        fi
+
+        # --- Baja SOLO el perfil de la rama (no tumbar DB) ---
+        echo "Bajando perfil \$PROFILE del proyecto \$PROJECT..."
+        \$COMPOSE -p "\$PROJECT" -f "\$FILE" --profile "\$PROFILE" down || true
+
+        # --- Sube perfil con build ---
+        echo "Subiendo perfil \$PROFILE del proyecto \$PROJECT..."
+        \$COMPOSE -p "\$PROJECT" -f "\$FILE" --profile "\$PROFILE" up -d --build
+
+        echo "Estado de servicios del proyecto \$PROJECT / perfil \$PROFILE:"
+        \$COMPOSE -p "\$PROJECT" -f "\$FILE" --profile "\$PROFILE" ps
+      """
+    }
+  }
+  post {
+    success { script { stageStatus['Deploy'] = 'SUCCESS' } }
+    failure { script { stageStatus['Deploy'] = 'FAILURE'; failedStage = "Deploy" } }
+    aborted { script { stageStatus['Deploy'] = 'NOT_EXECUTED' } }
+  }
+}
+
+
+// ================= Notificaciones de correo =================
     post {
         failure {
             script {
