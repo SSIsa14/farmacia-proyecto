@@ -1,0 +1,27 @@
+# Node 18 sobre Debian Bullseye
+FROM node:18-bullseye
+
+# Evita prompts de apt
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instala Chromium y librerías mínimas necesarias para ChromeHeadless
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      chromium \
+      fonts-liberation \
+      libnss3 \
+      libasound2 \
+      libatk-bridge2.0-0 \
+      libgtk-3-0 \
+      libgbm1 \
+      xvfb \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Variables típicas para herramientas que buscan Chrome
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMIUM_BIN=/usr/bin/chromium
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+# Carpeta de trabajo por comodidad (opcional)
+WORKDIR /workspace
