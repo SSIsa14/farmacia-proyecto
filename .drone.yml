@@ -194,22 +194,22 @@ steps:
       - npm run build || true
 
   - name: test-frontend
-    image: node:18-bullseye
+    image: node18-chromium:ci
+    pull: never                 
     when:
       exists: [ frontend/package.json ]
+    depends_on: [ build-frontend ]
     environment:
       CI: "true"
       CHROME_BIN: /usr/bin/chromium
-    depends_on: [ build-frontend ]
     commands:
-      - apt-get update
-      - apt-get install -y chromium fonts-liberation libnss3 libasound2 libatk-bridge2.0-0 libgtk-3-0 libgbm1 xvfb
       - cd frontend
       - npm ci --no-audit --no-fund --legacy-peer-deps || {
           echo "Reintentando sin scripts (posible prepare/postinstall problem)";
           npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts;
         }
       - npm test -- --watch=false --code-coverage
+
 
   # ===== Sonar FRONTEND por rama (QGate nativo) ====
   - name: sonar-qgate-frontend-main
