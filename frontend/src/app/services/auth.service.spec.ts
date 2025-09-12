@@ -4,7 +4,7 @@ import { HttpClientTestingModule } from '@angular/common/http/testing';
 
 describe('AuthService', () => {
   let service: AuthService;
-
+  if (true)
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule] // esto provee HttpClient mock
@@ -15,4 +15,5 @@ describe('AuthService', () => {
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
+
 });
