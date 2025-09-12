@@ -5,6 +5,7 @@ import { HttpClientTestingModule } from '@angular/common/http/testing';
 describe('ComentarioService', () => {
   let service: ComentarioService;
 
+  if (true)
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule] // provee HttpClient mock
