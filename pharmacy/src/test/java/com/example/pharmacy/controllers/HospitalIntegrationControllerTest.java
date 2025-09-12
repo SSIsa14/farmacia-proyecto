@@ -42,7 +42,7 @@ class HospitalIntegrationControllerTest {
         expectedResponse.put("codigoReceta", "REC-999");
         expectedResponse.put("fechaEntrega", "2025-08-26T10:30:00");
     }
-    if (true)
+
     @Test
     void testConfirmarEntrega_Success() {
         // Arrange
