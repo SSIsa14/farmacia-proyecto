@@ -169,24 +169,18 @@ steps:
         from_secret: sonar-token
     depends_on: [ test-backend, wait-for-sonarqube ]
     commands:
-      - test -n "$SONAR_TOKEN" || { echo "Falta SONAR_TOKEN"; exit 2; }
+      - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_backend_qa"; exit 2; }
       - cd pharmacy
       - |
-        PR_ARGS="-Dsonar.pullrequest.key=${DRONE_PULL_REQUEST} \
-                -Dsonar.pullrequest.branch=${DRONE_SOURCE_BRANCH} \
-                -Dsonar.pullrequest.base=${DRONE_TARGET_BRANCH} \
-                -Dsonar.newCode.referenceBranch=${DRONE_TARGET_BRANCH}"
         mvn -B sonar:sonar \
           -DskipTests \
-          -Dsonar.projectKey=FP:Backend_${DRONE_TARGET_BRANCH} \
-          -Dsonar.projectName=FP:Backend_${DRONE_TARGET_BRANCH} \
+          -Dsonar.projectKey=FP:Backend_PR-${DRONE_PULL_REQUEST} \
+          -Dsonar.projectName=FP:Backend_PR-${DRONE_PULL_REQUEST} \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
           -Dsonar.qualitygate.wait=true \
-          -Dsonar.qualitygate.timeout=600 \
-          $PR_ARGS
-
+          -Dsonar.qualitygate.timeout=600
 
   # ===== Frontend (build) =====
   - name: build-frontend
@@ -315,26 +309,21 @@ steps:
       SONAR_USER_HOME: /tmp/sonar
     depends_on: [ test-frontend, wait-for-sonarqube ]
     commands:
-      - test -n "$SONAR_TOKEN" || { echo "Falta SONAR_TOKEN"; exit 2; }
+      - test -n "$SONAR_TOKEN" || { echo "Falta sonar_token_frontend_main"; exit 2; }
       - cd frontend
       - test -f coverage/lcov.info || { echo "No existe coverage/lcov.info"; exit 3; }
       - |
         sonar-scanner \
-          -Dsonar.projectKey=FP:Frontend_${DRONE_TARGET_BRANCH} \
-          -Dsonar.projectName=FP:Frontend_${DRONE_TARGET_BRANCH} \
+          -Dsonar.projectKey=FP:Frontend_PR-${DRONE_PULL_REQUEST} \
+          -Dsonar.projectName=FP:Frontend_PR-${DRONE_PULL_REQUEST} \
           -Dsonar.sources=. \
           -Dsonar.host.url="$SONAR_HOST_URL" \
           -Dsonar.token="$SONAR_TOKEN" \
           -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
           -Dsonar.working.directory=/tmp/.scannerwork \
           -Djava.io.tmpdir=/tmp \
-          -Dsonar.pullrequest.key=${DRONE_PULL_REQUEST} \
-          -Dsonar.pullrequest.branch=${DRONE_SOURCE_BRANCH} \
-          -Dsonar.pullrequest.base=${DRONE_TARGET_BRANCH} \
-          -Dsonar.newCode.referenceBranch=${DRONE_TARGET_BRANCH} \
           -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=600
-
 
 
   # ====Deploy por rama ==
