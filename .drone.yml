@@ -469,7 +469,7 @@ steps:
       recipients:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
-      subject: "TEST DRONE"
+      subject: "TEST  DRONE"
       headers:
         - "Content-Type: text/html; charset=UTF-8"
       body: |
