@@ -446,6 +446,7 @@ steps:
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 ---
+---
 kind: pipeline
 type: docker
 name: farmacia-notify
@@ -457,54 +458,113 @@ trigger:
 
 steps:
   - name: notify
-    image: plugins/email
-    settings:
-      host: smtp.gmail.com
-      port: 587
-      username:
+    image: python:3.12-alpine
+    environment:
+      DRONE_SERVER:
+        from_secret: drone_server
+      DRONE_TOKEN:
+        from_secret: drone_token
+      SMTP_USER:
         from_secret: smtp_user
-      password:
+      SMTP_PASS:
         from_secret: smtp_pass
-      from: sandovalisabela0524@gmail.com
-      recipients:
-        - jflores@unis.edu.gt
-        - abrilsofia159@gmail.com
-      subject: "TEST  DRONE"
-      headers:
-        - "Content-Type: text/html; charset=UTF-8"
-      body: |
+      TO_1: jflores@unis.edu.gt
+      TO_2: abrilsofia159@gmail.com
+    commands:
+      - apk add --no-cache curl jq
+      # 1) Traer detalle del build (incluye pipelines/stages/steps)
+      - >
+        curl -fsSL -H "Authorization: Bearer ${DRONE_TOKEN}"
+        "${DRONE_SERVER}/api/repos/${DRONE_REPO}/builds/${DRONE_BUILD_NUMBER}"
+        -o /tmp/build.json
+      # 2) Generar tabla HTML de stages/steps con su status
+      - |
+        cat >/tmp/failed_table.html <<'HTML'
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="background:#f8fafc">
+            <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Pipeline (stage)</th>
+            <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Step</th>
+            <th style="text-align:left;padding:8px;border-bottom:1px solid #e5e7eb">Estado</th>
+          </tr>
+        HTML
+      - |
+        jq -r '
+          .stages[] as $s |
+          $s.steps[] |
+          "<tr><td style=\"padding:8px;border-bottom:1px solid #f1f5f9\">" + $s.name + "</td>"
+          + "<td style=\"padding:8px;border-bottom:1px solid #f1f5f9\">" + .name + "</td>"
+          + "<td style=\"padding:8px;border-bottom:1px solid #f1f5f9;font-weight:700\">" + .status + "</td></tr>"
+        ' /tmp/build.json >> /tmp/failed_table.html
+      - echo '</table>' >> /tmp/failed_table.html
+      # 3) Resumen corto de steps fallidos (si hay)
+      - |
+        jq -r '
+          [ .stages[] as $s |
+            $s.steps[] | select(.status != "success") |
+            ($s.name + " → " + .name + " (" + .status + ")")
+          ] | if length==0 then "OK" else join(", ") end
+        ' /tmp/build.json > /tmp/failed_list.txt
+      # 4) Ensamblar el HTML final del correo
+      - |
+        cat >/tmp/email.html <<EOF
         <!doctype html>
-        <html lang="es">
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f6f7fb;color:#111}
-            .box{max-width:640px;margin:16px auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
-            .head{padding:14px 18px;background:#0ea5e9;color:#fff;font-weight:700}
-            .sub{padding:8px 18px;background:#f0f9ff;color:#0369a1;font-size:12px}
-            .content{padding:16px 18px}
-            table{width:100%;border-collapse:collapse}
-            td{padding:8px 6px;border-bottom:1px solid #f1f5f9;font-size:14px}
-            td:first-child{color:#64748b;width:34%}
-            .foot{padding:10px 18px;color:#64748b;font-size:12px;background:#fafafa}
-            .status{font-weight:700}
-          </style>
-        </head>
-        <body>
-          <div class="box">
-            <div class="head">Resultado del pipeline</div>
-            <div class="sub">Estado: <span class="status">${DRONE_BUILD_STATUS}</span></div>
-            <div class="content">
-              <table>
-                <tr><td>Proyecto</td><td>${DRONE_REPO}</td></tr>
-                <tr><td>Rama</td><td>${DRONE_BRANCH}</td></tr>
-                <tr><td>Build #</td><td>${DRONE_BUILD_NUMBER}</td></tr>
-                <tr><td>Autor</td><td>${DRONE_COMMIT_AUTHOR}</td></tr>
-                <tr><td>Commit</td><td>${DRONE_COMMIT_SHA}</td></tr>
-                <tr><td>Step fallido(s)</td><td>${DRONE_FAILED_STEPS}</td></tr>
-              </table>
-            </div>
-            <div class="foot">Enviado automáticamente por Drone CI</div>
+        <html lang="es"><head><meta charset="utf-8">
+        <style>
+          body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f6f7fb;color:#111}
+          .box{max-width:720px;margin:16px auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+          .head{padding:14px 18px;background:#0ea5e9;color:#fff;font-weight:700}
+          .sub{padding:8px 18px;background:#f0f9ff;color:#0369a1;font-size:12px}
+          .content{padding:16px 18px}
+          table{width:100%}
+          td{padding:8px 6px;border-bottom:1px solid #f1f5f9;font-size:14px}
+          td:first-child{color:#64748b;width:34%}
+          .foot{padding:10px 18px;color:#64748b;font-size:12px;background:#fafafa}
+          .status{font-weight:700}
+        </style>
+        </head><body>
+        <div class="box">
+          <div class="head">Resultado del pipeline</div>
+          <div class="sub">Estado: <span class="status">${DRONE_BUILD_STATUS}</span></div>
+          <div class="content">
+            <table>
+              <tr><td>Proyecto</td><td>${DRONE_REPO}</td></tr>
+              <tr><td>Rama</td><td>${DRONE_BRANCH}</td></tr>
+              <tr><td>Build #</td><td>${DRONE_BUILD_NUMBER}</td></tr>
+              <tr><td>Autor</td><td>${DRONE_COMMIT_AUTHOR}</td></tr>
+              <tr><td>Commit</td><td>${DRONE_COMMIT_SHA}</td></tr>
+              <tr><td>Resumen fallos</td><td>$(cat /tmp/failed_list.txt)</td></tr>
+            </table>
+            <h3 style="margin-top:16px">Detalle de stages/steps</h3>
+            $(cat /tmp/failed_table.html)
           </div>
-        </body>
-        </html>
+          <div class="foot">Enviado automáticamente por Drone CI</div>
+        </div>
+        </body></html>
+        EOF
+      # 5) Enviar email con Python (
+      - |
+        python - <<'PY'
+        import os, smtplib
+        from email.mime.text import MIMEText
+        from email.header import Header
+
+        smtp_user = os.environ["SMTP_USER"]
+        smtp_pass = os.environ["SMTP_PASS"]
+        to_addrs  = [os.environ["TO_1"], os.environ["TO_2"]]
+
+        with open("/tmp/email.html","r",encoding="utf-8") as f:
+            html = f.read()
+
+        subject = f"Pipeline {os.environ.get('DRONE_REPO','')} - {os.environ.get('DRONE_BUILD_STATUS','')}"
+        msg = MIMEText(html, "html", "utf-8")
+        msg["Subject"] = Header(subject, "utf-8")
+        msg["From"] = smtp_user
+        msg["To"] = ", ".join(to_addrs)
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as s:
+            s.ehlo()
+            s.starttls()
+            s.login(smtp_user, smtp_pass)
+            s.sendmail(smtp_user, to_addrs, msg.as_string())
+        print("Correo enviado")
+        PY
