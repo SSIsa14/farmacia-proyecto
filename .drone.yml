@@ -471,12 +471,12 @@ steps:
       TO_2: abrilsofia159@gmail.com
     commands:
       - apk add --no-cache curl jq
-      # 1) Traer detalle del build (incluye pipelines/stages/steps)
+      # Detalle del build (incluye pipelines/stages/steps)
       - >
         curl -fsSL -H "Authorization: Bearer ${DRONE_TOKEN}"
         "${DRONE_SERVER}/api/repos/${DRONE_REPO}/builds/${DRONE_BUILD_NUMBER}"
         -o /tmp/build.json
-      # 2) Generar tabla HTML de stages/steps con su status
+      # Tabla HTML de stages/steps con su status
       - |
         cat >/tmp/failed_table.html <<'HTML'
         <table style="width:100%;border-collapse:collapse">
@@ -495,7 +495,7 @@ steps:
           + "<td style=\"padding:8px;border-bottom:1px solid #f1f5f9;font-weight:700\">" + .status + "</td></tr>"
         ' /tmp/build.json >> /tmp/failed_table.html
       - echo '</table>' >> /tmp/failed_table.html
-      # 3) Resumen corto de steps fallidos (si hay)
+      # Resumen corto de steps fallidos 
       - |
         jq -r '
           [ .stages[] as $s |
@@ -503,7 +503,7 @@ steps:
             ($s.name + " → " + .name + " (" + .status + ")")
           ] | if length==0 then "OK" else join(", ") end
         ' /tmp/build.json > /tmp/failed_list.txt
-      # 4) Ensamblar el HTML final del correo
+      #  HTML final del correo
       - |
         cat >/tmp/email.html <<EOF
         <!doctype html>
@@ -540,7 +540,7 @@ steps:
         </div>
         </body></html>
         EOF
-      # 5) Enviar email con Python (
+      # 5) Email con Python 
       - |
         python - <<'PY'
         import os, smtplib
