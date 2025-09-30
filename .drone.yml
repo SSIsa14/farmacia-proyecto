@@ -446,7 +446,6 @@ steps:
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" up -d --build
         docker compose -p "$PROJECT" -f "$FILE" --profile "$PROFILE" ps
 ---
----
 kind: pipeline
 type: docker
 name: farmacia-notify
