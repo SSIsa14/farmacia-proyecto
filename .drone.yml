@@ -469,7 +469,7 @@ steps:
       recipients:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
-      subject: "Pipeline ${DRONE_REPO} - ${DRONE_BUILD_STATUS}"
+      subject: " TEST - Pipeline ${DRONE_REPO} - ${DRONE_BUILD_STATUS}"
       headers:
         - "Content-Type: text/html; charset=UTF-8"
       body: |
