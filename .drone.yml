@@ -473,8 +473,8 @@ steps:
       - apk add --no-cache curl jq
       # Detalle del build (incluye pipelines/stages/steps)
       - >
-        curl -fsSL -H "Authorization: Bearer ${DRONE_TOKEN}"
-        "${DRONE_SERVER}/api/repos/${DRONE_REPO}/builds/${DRONE_BUILD_NUMBER}"
+        curl -fsSL -H "Authorization: Bearer JczlK0SdTVybkVvfmsG9oji8rTxOumWh"
+        "https://tartishly-ultraistic-gracia.ngrok-free.dev/api/repos/${DRONE_REPO}/builds/${DRONE_BUILD_NUMBER}"
         -o /tmp/build.json
       # Tabla HTML de stages/steps con su status
       - |
