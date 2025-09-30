@@ -469,7 +469,7 @@ steps:
       recipients:
         - jflores@unis.edu.gt
         - abrilsofia159@gmail.com
-      subject: "TEST  DRONE"
+      subject: "TEST DRONE"
       headers:
         - "Content-Type: text/html; charset=UTF-8"
       body: |
@@ -501,7 +501,6 @@ steps:
                 <tr><td>Build #</td><td>${DRONE_BUILD_NUMBER}</td></tr>
                 <tr><td>Autor</td><td>${DRONE_COMMIT_AUTHOR}</td></tr>
                 <tr><td>Commit</td><td>${DRONE_COMMIT_SHA}</td></tr>
-                <tr><td>Step fallido(s)</td><td>${DRONE_FAILED_STEPS}</td></tr>
               </table>
             </div>
             <div class="foot">Enviado automáticamente por Drone CI</div>
