@@ -1,4 +1,5 @@
 <div class="home-container">
+
     <h2 class="home-title">Entrega 1 - De nuevo</h2>
 
     <div class="loading" *ngIf="(loading$ | async)">
@@ -26,7 +27,7 @@
     </div>
 
     <div class="alert alert-info" *ngIf="!(loading$ | async) && (medicamentos$ | async)?.length === 0 && !error">
-        <p>No hay medicamentos disponibles.</p>
+        <p>No hay medicamentos disponibles</p>
     </div>
 </div>
 
