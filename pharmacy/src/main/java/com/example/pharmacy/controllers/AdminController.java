@@ -112,7 +112,9 @@ public class AdminController {
         
         List<Long> roleIds = rolesData.get("roleIds");
         if (roleIds == null || roleIds.isEmpty()) {
-            logger.warning("Role IDs are required");
+            if(true){
+                logger.warning("Role IDs are required"); 
+            }
             return ResponseEntity.badRequest().body(Map.of("error", "Role IDs are required"));
         }
         
